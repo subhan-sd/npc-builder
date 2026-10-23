@@ -18,6 +18,10 @@ config/name="Living World - NPC Builder Preview"
 run/main_scene="res://scenes/preview.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
+[autoload]
+
+NpcBridge="*res://scripts/npc_bridge.gd"
+
 [display]
 
 window/stretch/mode="canvas_items"

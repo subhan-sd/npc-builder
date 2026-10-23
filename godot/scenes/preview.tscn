@@ -61,8 +61,8 @@ theme_override_constants/separation = 10
 
 [node name="Title" type="Label" parent="Controls"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "NPC Builder Studio (v0.2)"
+theme_override_font_sizes/font_size = 18
+text = "NPC Builder Studio (v0.2.1)"
 
 [node name="SeedRow" type="HBoxContainer" parent="Controls"]
 layout_mode = 2

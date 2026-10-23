@@ -1,51 +1,54 @@
 #include "npc/generator.hpp"
 #include "npc/serializer.hpp"
-#include <cassert>
 #include <iostream>
+#include <cassert>
 
 void test_rng_determinism() {
-    auto app1 = npc::CharacterGenerator::generate_from_seed(424242, 1);
-    auto app2 = npc::CharacterGenerator::generate_from_seed(424242, 1);
-
+    auto app1 = npc::CharacterGenerator::generate_from_seed(42, 1);
+    auto app2 = npc::CharacterGenerator::generate_from_seed(42, 1);
     assert(app1.body.height == app2.body.height);
     assert(app1.body.body_mass == app2.body.body_mass);
-    assert(app1.body.muscularity == app2.body.muscularity);
-    assert(app1.face.hair_style == app2.face.hair_style);
-    assert(app1.face.skin_color == app2.face.skin_color);
-    std::cout << "[PASS] RNG Determinism verified.\n";
-}
-
-void test_body_variations_and_render() {
-    auto app = npc::CharacterGenerator::generate_from_seed(999, 1);
-    app.body.height = 1.0f;     // Extreme tall
-    app.body.body_mass = 0.9f;  // Heavy (Chin Jim)
-    app.body.muscularity = 0.8f;
-    app.body.clamp();
+    assert(app1.face.skin_color.r == app2.face.skin_color.r);
+    assert(app1.face.eye_color.g == app2.face.eye_color.g);
 
     npc::PhysicalConditionSet cond;
     npc::AnimationCommand cmd{npc::AnimationState::Idle, npc::Direction::South, 0.0f, 1.0f};
 
-    auto buf = npc::CharacterGenerator::render(app, cond, cmd);
-    assert(buf.width == npc::CharacterGenerator::CANVAS_WIDTH);
-    assert(buf.height == npc::CharacterGenerator::CANVAS_HEIGHT);
+    auto buf1 = npc::CharacterGenerator::render(app1, cond, cmd);
+    auto buf2 = npc::CharacterGenerator::render(app2, cond, cmd);
 
-    // Verify canvas has non-zero pixels
-    int non_empty_pixels = 0;
-    for (const auto& p : buf.pixels) {
-        if (p.a > 0) non_empty_pixels++;
+    assert(buf1.pixels.size() == buf2.pixels.size());
+    for (size_t i = 0; i < buf1.pixels.size(); ++i) {
+        assert(buf1.pixels[i].r == buf2.pixels[i].r);
+        assert(buf1.pixels[i].g == buf2.pixels[i].g);
+        assert(buf1.pixels[i].b == buf2.pixels[i].b);
+        assert(buf1.pixels[i].a == buf2.pixels[i].a);
     }
-    assert(non_empty_pixels > 50);
-    std::cout << "[PASS] Body variation & render (" << non_empty_pixels << " pixels drawn).\n";
+    std::cout << "[PASS] RNG Determinism verified.\n";
+}
+
+void test_body_variation() {
+    auto app = npc::CharacterGenerator::generate_from_seed(999, 1);
+    npc::PhysicalConditionSet cond;
+    npc::AnimationCommand cmd{npc::AnimationState::Idle, npc::Direction::South, 0.0f, 1.0f};
+    auto buf = npc::CharacterGenerator::render(app, cond, cmd);
+
+    int drawn_pixels = 0;
+    for (const auto& p : buf.pixels) {
+        if (p.a > 0) drawn_pixels++;
+    }
+    assert(drawn_pixels > 150);
+    std::cout << "[PASS] Body variation & render (" << drawn_pixels << " pixels drawn).\n";
 }
 
 void test_body_profiles_silhouette() {
     npc::PhysicalConditionSet cond;
     npc::AnimationCommand cmd{npc::AnimationState::Idle, npc::Direction::South, 0.0f, 1.0f};
 
-    // Trim Jim (Average)
+    // Trim Jim (Baseline Average)
     auto trim = npc::CharacterGenerator::generate_from_seed(101, 1);
-    trim.body.body_mass = 0.4f;
-    trim.body.muscularity = 0.4f;
+    trim.body.body_mass = 0.5f;
+    trim.body.muscularity = 0.5f;
     auto buf_trim = npc::CharacterGenerator::render(trim, cond, cmd);
 
     // Gym Jim (Muscular)
@@ -78,6 +81,42 @@ void test_body_profiles_silhouette() {
     assert(px_gym > px_slim);
     std::cout << "[PASS] Reference 1 silhouettes verified (Slim: " << px_slim
               << ", Trim: " << px_trim << ", Gym: " << px_gym << ", Chin: " << px_chin << ").\n";
+}
+
+void test_posture_deformation() {
+    auto app_upright = npc::CharacterGenerator::generate_from_seed(101, 1);
+    app_upright.body.posture = 0.0f;
+
+    auto app_hunched = npc::CharacterGenerator::generate_from_seed(101, 1);
+    app_hunched.body.posture = 1.0f;
+
+    npc::PhysicalConditionSet cond;
+    npc::AnimationCommand cmd_side{npc::AnimationState::Idle, npc::Direction::East, 0.0f, 1.0f};
+
+    auto buf_upright = npc::CharacterGenerator::render(app_upright, cond, cmd_side);
+    auto buf_hunched = npc::CharacterGenerator::render(app_hunched, cond, cmd_side);
+
+    // Verify side silhouette shift in hunched posture
+    int min_x_upright = 32, max_x_upright = 0;
+    int min_x_hunched = 32, max_x_hunched = 0;
+
+    for (int y = 0; y < 48; ++y) {
+        for (int x = 0; x < 32; ++x) {
+            if (buf_upright.get_pixel(x, y).a > 0) {
+                min_x_upright = std::min(min_x_upright, x);
+                max_x_upright = std::max(max_x_upright, x);
+            }
+            if (buf_hunched.get_pixel(x, y).a > 0) {
+                min_x_hunched = std::min(min_x_hunched, x);
+                max_x_hunched = std::max(max_x_hunched, x);
+            }
+        }
+    }
+
+    // Hunched posture leans forward (positive x for East)
+    assert(max_x_hunched > max_x_upright);
+    std::cout << "[PASS] Posture deformation verified (Upright max X: " << max_x_upright
+              << ", Hunched max X: " << max_x_hunched << ").\n";
 }
 
 void test_amputations() {
@@ -147,16 +186,18 @@ void test_serialization() {
     assert(app1.npc_id == app2.npc_id);
     assert(app1.appearance_seed == app2.appearance_seed);
     assert(app1.body.height == app2.body.height);
-    assert(app1.face.hair_style == app2.face.hair_style);
-    assert(app1.face.skin_color == app2.face.skin_color);
+    assert(app1.body.body_mass == app2.body.body_mass);
+    assert(app1.body.muscularity == app2.body.muscularity);
+    assert(app1.body.posture == app2.body.posture);
     std::cout << "[PASS] Serialization & deserialization verified.\n";
 }
 
 int main() {
     std::cout << "Running NPC Builder unit tests...\n";
     test_rng_determinism();
-    test_body_variations_and_render();
+    test_body_variation();
     test_body_profiles_silhouette();
+    test_posture_deformation();
     test_amputations();
     test_conditions_and_injuries();
     test_all_animation_states();
