@@ -4,6 +4,8 @@ extends Control
 @onready var seed_spin: SpinBox = $Controls/SeedRow/SpinBox
 @onready var height_slider: HSlider = $Controls/HeightRow/HSlider
 @onready var mass_slider: HSlider = $Controls/MassRow/HSlider
+@onready var musc_slider: HSlider = $Controls/MuscRow/HSlider
+@onready var post_slider: HSlider = $Controls/PostRow/HSlider
 @onready var anim_option: OptionButton = $Controls/AnimRow/OptionButton
 @onready var dir_option: OptionButton = $Controls/DirRow/OptionButton
 @onready var amp_arm_box: CheckBox = $Controls/Amputations/LeftArm
@@ -34,6 +36,9 @@ func _setup_ui() -> void:
     seed_spin.value_changed.connect(_on_seed_changed)
     height_slider.value_changed.connect(func(_v): _update_params())
     mass_slider.value_changed.connect(func(_v): _update_params())
+    musc_slider.value_changed.connect(func(_v): _update_params())
+    post_slider.value_changed.connect(func(_v): _update_params())
+
     anim_option.item_selected.connect(func(_i): _update_display())
     dir_option.item_selected.connect(func(_i): _update_display())
     amp_arm_box.toggled.connect(func(_b): _update_display())
@@ -47,11 +52,15 @@ func _on_seed_changed(val: float) -> void:
     current_app = NpcBridge.generate_appearance(int(val), 1)
     height_slider.set_value_no_signal(current_app.get("height", 0.5))
     mass_slider.set_value_no_signal(current_app.get("body_mass", 0.5))
+    musc_slider.set_value_no_signal(current_app.get("muscularity", 0.5))
+    post_slider.set_value_no_signal(current_app.get("posture", 0.0))
     _update_display()
 
 func _update_params() -> void:
     current_app["height"] = height_slider.value
     current_app["body_mass"] = mass_slider.value
+    current_app["muscularity"] = musc_slider.value
+    current_app["posture"] = post_slider.value
     _update_display()
 
 func _update_display() -> void:

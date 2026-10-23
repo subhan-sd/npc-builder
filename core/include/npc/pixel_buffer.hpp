@@ -48,6 +48,25 @@ struct PixelBuffer {
             }
         }
     }
+
+    void draw_hline(int x, int y, int len, ColorRGBA color) {
+        for (int dx = 0; dx < len; ++dx) {
+            set_pixel(x + dx, y, color);
+        }
+    }
+
+    void draw_span(int y, int x_start, int x_end, ColorRGBA fill_color, ColorRGBA left_edge, ColorRGBA right_edge) {
+        if (x_end < x_start) return;
+        if (x_start == x_end) {
+            set_pixel(x_start, y, left_edge);
+            return;
+        }
+        set_pixel(x_start, y, left_edge);
+        for (int x = x_start + 1; x < x_end; ++x) {
+            set_pixel(x, y, fill_color);
+        }
+        set_pixel(x_end, y, right_edge);
+    }
 };
 
 } // namespace npc

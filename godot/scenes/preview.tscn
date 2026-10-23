@@ -55,20 +55,20 @@ stretch_mode = 5
 layout_mode = 0
 offset_left = 24.0
 offset_top = 24.0
-offset_right = 320.0
-offset_bottom = 500.0
-theme_override_constants/separation = 12
+offset_right = 340.0
+offset_bottom = 580.0
+theme_override_constants/separation = 10
 
 [node name="Title" type="Label" parent="Controls"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "NPC Builder Preview"
+text = "NPC Builder Studio (v0.2)"
 
 [node name="SeedRow" type="HBoxContainer" parent="Controls"]
 layout_mode = 2
 
 [node name="Label" type="Label" parent="Controls/SeedRow"]
-custom_minimum_size = Vector2(80, 0)
+custom_minimum_size = Vector2(90, 0)
 layout_mode = 2
 text = "Seed:"
 
@@ -82,7 +82,7 @@ value = 12345.0
 layout_mode = 2
 
 [node name="Label" type="Label" parent="Controls/HeightRow"]
-custom_minimum_size = Vector2(80, 0)
+custom_minimum_size = Vector2(90, 0)
 layout_mode = 2
 text = "Height:"
 
@@ -97,7 +97,7 @@ value = 0.5
 layout_mode = 2
 
 [node name="Label" type="Label" parent="Controls/MassRow"]
-custom_minimum_size = Vector2(80, 0)
+custom_minimum_size = Vector2(90, 0)
 layout_mode = 2
 text = "Body Mass:"
 
@@ -108,11 +108,41 @@ max_value = 1.0
 step = 0.05
 value = 0.5
 
+[node name="MuscRow" type="HBoxContainer" parent="Controls"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Controls/MuscRow"]
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+text = "Muscularity:"
+
+[node name="HSlider" type="HSlider" parent="Controls/MuscRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.05
+value = 0.5
+
+[node name="PostRow" type="HBoxContainer" parent="Controls"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Controls/PostRow"]
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+text = "Posture:"
+
+[node name="HSlider" type="HSlider" parent="Controls/PostRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.05
+value = 0.0
+
 [node name="AnimRow" type="HBoxContainer" parent="Controls"]
 layout_mode = 2
 
 [node name="Label" type="Label" parent="Controls/AnimRow"]
-custom_minimum_size = Vector2(80, 0)
+custom_minimum_size = Vector2(90, 0)
 layout_mode = 2
 text = "Animation:"
 
@@ -124,7 +154,7 @@ size_flags_horizontal = 3
 layout_mode = 2
 
 [node name="Label" type="Label" parent="Controls/DirRow"]
-custom_minimum_size = Vector2(80, 0)
+custom_minimum_size = Vector2(90, 0)
 layout_mode = 2
 text = "Direction:"
 
