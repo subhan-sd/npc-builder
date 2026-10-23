@@ -1,0 +1,5 @@
+build/
+*.so
+*.a
+*.o
+.godot/
