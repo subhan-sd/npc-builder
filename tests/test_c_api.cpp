@@ -6,8 +6,8 @@
 
 void test_c_api_version() {
     uint32_t ver = npc_get_api_version();
-    TEST_ASSERT_EQ(ver, 2u);
-    std::cout << "[PASS] npc_get_api_version() returned 2.\n";
+    TEST_ASSERT_EQ(ver, 3u);
+    std::cout << "[PASS] npc_get_api_version() returned 3.\n";
 }
 
 void test_c_api_parity_100_seeds() {

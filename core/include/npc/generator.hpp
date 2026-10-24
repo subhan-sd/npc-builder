@@ -2,6 +2,7 @@
 #include "types.hpp"
 #include "appearance.hpp"
 #include "conditions.hpp"
+#include "profile.hpp"
 #include "pixel_buffer.hpp"
 #include "rng.hpp"
 
@@ -19,10 +20,25 @@ public:
     static constexpr int CANVAS_WIDTH = 32;
     static constexpr int CANVAS_HEIGHT = 48;
 
-    // Generate random appearance deterministically from seed
+    // Generate random appearance deterministically from seed (legacy)
     static HumanAppearance generate_from_seed(uint64_t seed, uint32_t npc_id = 1);
 
-    // Render character to pixel buffer based on appearance, conditions, and animation command
+    // Generate canonical CharacterProfile deterministically from seed
+    static CharacterProfile generate_profile_from_seed(uint64_t seed, uint32_t npc_id = 1) {
+        auto app = generate_from_seed(seed, npc_id);
+        return CharacterProfile::from_legacy(app);
+    }
+
+    // Render character using canonical CharacterProfile and AnimationCommand
+    static PixelBuffer render_profile(
+        const CharacterProfile& profile,
+        const AnimationCommand& cmd
+    ) {
+        auto app = profile.to_legacy_appearance();
+        return render(app, profile.physical.conditions, cmd);
+    }
+
+    // Render character to pixel buffer based on appearance, conditions, and animation command (legacy)
     static PixelBuffer render(
         const HumanAppearance& appearance,
         const PhysicalConditionSet& conditions,

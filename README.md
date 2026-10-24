@@ -5,7 +5,7 @@
 [![C++20](https://img.shields.io/badge/Language-C%2B%2B20-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B20)
 [![Engine](https://img.shields.io/badge/Engine-Godot%204.x-478cbf.svg)](https://godotengine.org/)
 [![CI](https://github.com/subhan-sd/npc-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/subhan-sd/npc-builder/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/Version-v0.2.3-orange.svg)]()
+[![Version](https://img.shields.io/badge/Version-v0.3.1-orange.svg)]()
 
 > **Living World NPC Builder** adalah sistem generator karakter piksel prosedural deterministik berbasis **C++20** untuk simulasi dunia dinamis, dilengkapi preview studio interaktif di **Godot 4.x** melalui **GDExtension**.
 
@@ -13,8 +13,8 @@
 
 ## 📌 Status & Progress Saat Ini
 
-**Versi Terkini:** `v0.2.3` — *GDExtension Architecture Migration & C++ Single Source of Truth*  
-**Fase Saat Ini:** Migrasi penuh dari generator GDScript duplikat ke modul native GDExtension C++ terverifikasi. C++ Core menjadi satu-satunya sumber kebenaran (*single source of truth*), teruji deterministik lintas platform dengan CTest dan 7.360 golden fixtures.
+**Versi Terkini:** `v0.3.1` — *Character Profile System & Domain Separation*  
+**Fase Saat Ini:** Menghadirkan model konfigurasi kanonikal `CharacterProfile` dengan pemisahan domain anatomi, tampilan visual, dan kondisi fisik. C++ Core bertindak sebagai satu-satunya sumber kebenaran (*single source of truth*) yang terintegrasi ke C-API v3, Serializer V3 (dengan backward compatibility V2), dan adapter GDExtension `NPCGenerator`. Seluruh 5 target pengujian CTest lulus 100%.
 
 ### 🖼️ Studio Preview (Godot 4.x GDExtension Runtime)
 
@@ -62,6 +62,16 @@ Setiap warna kulit diturunkan menjadi 5 tingkatan kontras:
 - Menghilangkan duplikasi logika generator dan rasterizer di GDScript.
 - Waktu render C++ inti rata-rata ~1.2 mikrodetik per karakter dengan determinisme 100% terverifikasi melalui matriks 7.360 golden fixture hash FNV-1a.
 
+### 7. Character Profile System & Domain Separation (v0.3.1)
+- **Model Konfigurasi Terstruktur (`CharacterProfile`)**:
+  - `AnatomyProfile`: Proporsi tubuh, skala massa, tinggi, rasio anggota tubuh, dan deformasi postur.
+  - `AppearanceProfile`: Pilihan bentuk mata, hidung, mulut, gaya rambut, ekspresi, dan warna RGBA.
+  - `PhysicalConditionProfile`: Kondisi luka (`injuries`) dan amputasi bertingkat (`amputations`).
+  - `GenerationProfile`: Pengenal NPC, benih acak (*seed*), dan versi generator.
+- **Validasi & Normalisasi Otomatis**: Mendeteksi nilai NaN/Inf, rentang [0.0, 1.0], dan enum tidak sah melalui `ProfileValidator`.
+- **Serialisasi Format V3 & Kompatibilitas**: Mendukung format profil V3 serta membaca format V2 lama tanpa kehilangan data.
+- **Eksposur Lintas Lapisan**: Tersedia melalui C-API v3 (`CNpcProfile`) dan GDExtension (`create_default_profile`, `generate_profile`, `validate_profile`, `serialize_profile`, `deserialize_profile`, `render_profile`).
+
 ---
 
 ## 🗺️ Roadmap Proyek
@@ -70,7 +80,8 @@ Setiap warna kulit diturunkan menjadi 5 tingkatan kontras:
 - [x] **v0.2**: 5-tone palette ramp, 10 body parts, cascade amputation, physical condition injuries.
 - [x] **v0.2.1**: Natural human anatomy, curvilinear torso, articulate limbs, multi-part posture deformation, unclothed preview.
 - [x] **v0.2.3**: GDExtension native architecture migration, C++ core single source of truth, C-API v2 with round-trip serializer, Release-proof CTest suite & 7,360 golden fixture matrix.
-- [ ] **v0.3**:
+- [x] **v0.3.1**: Character Profile System, domain separation (anatomy, appearance, conditions), ProfileValidator, Serializer V3, C-API v3, GDExtension profile bridge.
+- [ ] **v0.3.2+**:
   - Profil Anatomi Wanita (*Female body proportions, pelvic/chest variation*).
   - Sistem Layering Pakaian Dinamis (*Modular clothing, armor, and equipment*).
   - Variasi Wajah Lanjutan & Gaya Rambut Modular.
@@ -111,8 +122,8 @@ ctest --test-dir build --output-on-failure
 
 ```text
 ├── core/
-│   ├── include/npc/       # Header C++ (types, appearance, conditions, pixel_buffer, c_api.h)
-│   └── src/               # Implementasi C++ authoritative generator, serializer, & C API v2
+│   ├── include/npc/       # Header C++ (types, appearance, conditions, profile.hpp, pixel_buffer, c_api.h)
+│   └── src/               # Implementasi C++ authoritative generator, serializer, & C API v3
 ├── extension/             # Modul native GDExtension (adapter NPCGenerator & register_types)
 ├── godot/
 │   ├── bin/               # Manifest .gdextension & compiled dynamic libraries (.so / .dll)
@@ -121,6 +132,7 @@ ctest --test-dir build --output-on-failure
 │   └── project.godot      # Konfigurasi Godot 4.x project
 ├── tests/
 │   ├── test_generator.cpp # Unit test C++ (RNG, posture, silhouettes, amputasi)
+│   ├── test_profile.cpp   # Unit test kanonikal CharacterProfile v0.3.1
 │   ├── test_c_api.cpp     # Test kesetaraan 100% byte RGBA C API vs C++ Core
 │   ├── test_serializer.cpp# Test round-trip serializer & validasi data rusak
 │   ├── test_golden.cpp    # Test regresi 7.360 golden fixture hashes FNV-1a
@@ -131,6 +143,7 @@ ctest --test-dir build --output-on-failure
 │   ├── BRD_NPC_Builder_GDExtension_dilanjutkan.md
 │   ├── LAPORAN_AUDIT_DAN_RENCANA_MIGRASI_GDEXTENSION.md
 │   ├── README_v0.2.1.md   # Laporan rilis visual v0.2.1
+│   ├── V0.3/              # Dokumen kebutuhan bisnis v0.3.1 (Character Profile System)
 │   └── references/        # Fixture gambar & screenshot hasil pengujian
 └── README.md              # Dokumentasi utama proyek
 ```

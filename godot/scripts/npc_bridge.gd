@@ -46,3 +46,39 @@ func render_texture(
 ) -> ImageTexture:
 	var img = render_image(app, amputations, anim_state, direction, anim_time, injuries)
 	return ImageTexture.create_from_image(img)
+
+# v0.3.1 Character Profile Bridge APIs
+func create_default_profile(npc_id: int = 1, seed_val: int = 12345) -> Dictionary:
+	if _generator != null:
+		return _generator.create_default_profile(npc_id, seed_val)
+	return {}
+
+func generate_profile(seed_val: int, npc_id: int = 1) -> Dictionary:
+	if _generator != null:
+		return _generator.generate_profile(seed_val, npc_id)
+	return {}
+
+func validate_profile(profile: Dictionary) -> Dictionary:
+	if _generator != null:
+		return _generator.validate_profile(profile)
+	return {"is_valid": false, "issues": ["No native generator"]}
+
+func serialize_profile(profile: Dictionary) -> String:
+	if _generator != null:
+		return _generator.serialize_profile(profile)
+	return ""
+
+func deserialize_profile(serialized_data: String) -> Dictionary:
+	if _generator != null:
+		return _generator.deserialize_profile(serialized_data)
+	return {"success": false}
+
+func render_profile_image(
+	profile: Dictionary,
+	anim_state: int,
+	direction: int,
+	anim_time: float
+) -> Image:
+	if _generator != null:
+		return _generator.render_profile(profile, anim_state, direction, anim_time)
+	return Image.create(32, 48, false, Image.FORMAT_RGBA8)
