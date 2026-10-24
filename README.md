@@ -4,21 +4,21 @@
 
 [![C++20](https://img.shields.io/badge/Language-C%2B%2B20-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B20)
 [![Engine](https://img.shields.io/badge/Engine-Godot%204.x-478cbf.svg)](https://godotengine.org/)
-[![Build Status](https://img.shields.io/badge/Tests-8%2F8%20Passing-brightgreen.svg)]()
-[![Version](https://img.shields.io/badge/Version-v0.2.1-orange.svg)]()
+[![CI](https://github.com/subhan-sd/npc-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/subhan-sd/npc-builder/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/Version-v0.2.3-orange.svg)]()
 
-> **Living World NPC Builder** adalah sistem generator karakter piksel prosedural deterministik berbasis **C++20** untuk simulasi dunia dinamis, dilengkapi preview studio interaktif di **Godot 4.x**.
+> **Living World NPC Builder** adalah sistem generator karakter piksel prosedural deterministik berbasis **C++20** untuk simulasi dunia dinamis, dilengkapi preview studio interaktif di **Godot 4.x** melalui **GDExtension**.
 
 ---
 
 ## 📌 Status & Progress Saat Ini
 
-**Versi Terkini:** `v0.2.1` — *Visual Anatomy Refinement & Procedural Human Body System*  
-**Fase Saat Ini:** Fondasi anatomi manusia natural tanpa pakaian selesai terverifikasi sebelum masuk ke variasi gender dan pakaian.
+**Versi Terkini:** `v0.2.3` — *GDExtension Architecture Migration & C++ Single Source of Truth*  
+**Fase Saat Ini:** Migrasi penuh dari generator GDScript duplikat ke modul native GDExtension C++ terverifikasi. C++ Core menjadi satu-satunya sumber kebenaran (*single source of truth*), teruji deterministik lintas platform dengan CTest dan 7.360 golden fixtures.
 
-### 🖼️ Studio Preview (Godot 4.x Runtime)
+### 🖼️ Studio Preview (Godot 4.x GDExtension Runtime)
 
-![Godot Preview Window](docs/references/godot_preview_running_window.png)
+![Godot Preview Window GDExtension](docs/references/godot_preview_gdextension_running.png)
 
 ---
 
@@ -56,9 +56,11 @@ Setiap warna kulit diturunkan menjadi 5 tingkatan kontras:
 - **Amputasi Cascading**: 10 bagian tubuh (`Head`, `Torso`, `Left/Right Arm`, `Left/Right Hand`, `Left/Right Leg`, `Left/Right Foot`). Jika lengan diamputasi, tangan otomatis tidak dirender.
 - **Visual Injuries**: `Cut` / `Blood`, `Bandage` (balutan perban melintang), `Scar` (bekas luka), dan `Bruise` (memar). Semua luka terikat pada koordinat relatif anggota tubuh dan ikut berayun saat animasi.
 
-### 6. C++ Core Authoritative & Cross-Platform Bridge
-- Algoritma C++20 murni dengan alokasi memori terkontrol di `core/src/generator.cpp`.
-- GDScript bridge di `godot/scripts/npc_bridge.gd` mensinkronkan logika 1:1 sehingga preview dapat berjalan native di Windows/Linux tanpa ketergantungan DLL eksternal.
+### 6. C++ Core Single Source of Truth & GDExtension Architecture
+- Algoritma C++20 murni dengan alokasi memori terkontrol di `core/src/generator.cpp` sebagai satu-satunya sumber kebenaran (*single source of truth*).
+- Integrasi GDExtension native (`extension/` berbasis `godot-cpp`) mendaftarkan kelas `NPCGenerator` ke `ClassDB`.
+- Menghilangkan duplikasi logika generator dan rasterizer di GDScript.
+- Waktu render C++ inti rata-rata ~1.2 mikrodetik per karakter dengan determinisme 100% terverifikasi melalui matriks 7.360 golden fixture hash FNV-1a.
 
 ---
 
@@ -67,6 +69,7 @@ Setiap warna kulit diturunkan menjadi 5 tingkatan kontras:
 - [x] **v0.1**: Baseline flat-rectangle procedural renderer & Godot preview.
 - [x] **v0.2**: 5-tone palette ramp, 10 body parts, cascade amputation, physical condition injuries.
 - [x] **v0.2.1**: Natural human anatomy, curvilinear torso, articulate limbs, multi-part posture deformation, unclothed preview.
+- [x] **v0.2.3**: GDExtension native architecture migration, C++ core single source of truth, C-API v2 with round-trip serializer, Release-proof CTest suite & 7,360 golden fixture matrix.
 - [ ] **v0.3**:
   - Profil Anatomi Wanita (*Female body proportions, pelvic/chest variation*).
   - Sistem Layering Pakaian Dinamis (*Modular clothing, armor, and equipment*).
@@ -84,20 +87,23 @@ Setiap warna kulit diturunkan menjadi 5 tingkatan kontras:
 - CMake 3.20+
 - Godot Engine 4.x (Direkomendasikan 4.3 atau 4.7+)
 
-### 1. Build C++ Core & Test Suite
+### 1. Build C++ Core, Tests, & GDExtension
 ```bash
-# Konfigurasi dan compile
-cmake -B build -S .
-cmake --build build
+# Konfigurasi dan compile (Release)
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
 
-# Jalankan unit test
-./build/npc_test
+# Jalankan seluruh rangkaian test otomatis CTest
+ctest --test-dir build --output-on-failure
+
+# Jalankan benchmark render mikro
+./build/benchmark_render
 ```
 
-### 2. Menjalankan Godot Preview Studio
-1. Buka Godot Engine 4.x.
-2. Import project yang berada di folder `godot/`.
-3. Jalankan scene utama `res://scenes/preview.tscn` (tekan `F5` atau `F6`).
+### 2. Menjalankan Godot Preview Studio (GDExtension)
+1. Pastikan ekstensi `godot/bin/libnpc_builder_extension.so` (Linux) atau `.dll` (Windows) telah terkompilasi melalui CMake.
+2. Buka Godot Engine 4.x (res:// project di folder `godot/`).
+3. Jalankan scene utama `res://scenes/preview.tscn` (tekan `F5` atau `F6`). Godot otomatis memuat kelas native `NPCGenerator`.
 
 ---
 
@@ -105,17 +111,25 @@ cmake --build build
 
 ```text
 ├── core/
-│   ├── include/npc/       # Header C++ (types, appearance, conditions, pixel_buffer)
-│   └── src/               # Implementasi C++ authoritative generator & serializer
+│   ├── include/npc/       # Header C++ (types, appearance, conditions, pixel_buffer, c_api.h)
+│   └── src/               # Implementasi C++ authoritative generator, serializer, & C API v2
+├── extension/             # Modul native GDExtension (adapter NPCGenerator & register_types)
 ├── godot/
+│   ├── bin/               # Manifest .gdextension & compiled dynamic libraries (.so / .dll)
 │   ├── scenes/            # Scene UI Godot (preview.tscn)
-│   ├── scripts/           # Script UI & GDScript sync bridge (npc_bridge.gd)
+│   ├── scripts/           # Script UI & thin GDExtension bridge (npc_bridge.gd)
 │   └── project.godot      # Konfigurasi Godot 4.x project
 ├── tests/
 │   ├── test_generator.cpp # Unit test C++ (RNG, posture, silhouettes, amputasi)
-│   └── generate_fixtures.cpp # Tool generator fixture perbandingan gambar
+│   ├── test_c_api.cpp     # Test kesetaraan 100% byte RGBA C API vs C++ Core
+│   ├── test_serializer.cpp# Test round-trip serializer & validasi data rusak
+│   ├── test_golden.cpp    # Test regresi 7.360 golden fixture hashes FNV-1a
+│   ├── generate_fixtures.cpp # Tool generator fixture acuan
+│   └── benchmark_render.cpp  # Microbenchmark kecepatan render (~1.2 us/frame)
 ├── docs/
 │   ├── BRD_NPC_BUILDER_V0.2.1.md
+│   ├── BRD_NPC_Builder_GDExtension_dilanjutkan.md
+│   ├── LAPORAN_AUDIT_DAN_RENCANA_MIGRASI_GDEXTENSION.md
 │   ├── README_v0.2.1.md   # Laporan rilis visual v0.2.1
 │   └── references/        # Fixture gambar & screenshot hasil pengujian
 └── README.md              # Dokumentasi utama proyek

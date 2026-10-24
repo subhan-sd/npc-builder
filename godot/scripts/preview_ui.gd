@@ -13,6 +13,7 @@ extends Control
 
 var current_app: Dictionary = {}
 var anim_time: float = 0.0
+var _active_texture: ImageTexture = null
 
 func _ready() -> void:
 	_setup_ui()
@@ -50,29 +51,41 @@ func _process(delta: float) -> void:
 
 func _on_seed_changed(val: float) -> void:
 	current_app = NpcBridge.generate_appearance(int(val), 1)
-	height_slider.set_value_no_signal(current_app.get("height", 0.5))
-	mass_slider.set_value_no_signal(current_app.get("body_mass", 0.5))
-	musc_slider.set_value_no_signal(current_app.get("muscularity", 0.5))
-	post_slider.set_value_no_signal(current_app.get("posture", 0.0))
+	if current_app.has("body"):
+		var b = current_app["body"]
+		height_slider.set_value_no_signal(b.get("height", 0.5))
+		mass_slider.set_value_no_signal(b.get("body_mass", 0.5))
+		musc_slider.set_value_no_signal(b.get("muscularity", 0.5))
+		post_slider.set_value_no_signal(b.get("posture", 0.0))
 	_update_display()
 
 func _update_params() -> void:
-	current_app["height"] = height_slider.value
-	current_app["body_mass"] = mass_slider.value
-	current_app["muscularity"] = musc_slider.value
-	current_app["posture"] = post_slider.value
+	if !current_app.has("body"):
+		current_app["body"] = {}
+	var b = current_app["body"]
+	b["height"] = height_slider.value
+	b["body_mass"] = mass_slider.value
+	b["muscularity"] = musc_slider.value
+	b["posture"] = post_slider.value
 	_update_display()
 
 func _update_display() -> void:
-	var amputations := [false, false, false, false, false, false, false, false, false, false]
-	amputations[2] = amp_arm_box.button_pressed # Left Arm
-	amputations[6] = amp_leg_box.button_pressed # Left Leg
+	var amputations := []
+	if amp_arm_box.button_pressed:
+		amputations.append(2) # LeftArm
+	if amp_leg_box.button_pressed:
+		amputations.append(6) # LeftLeg
 
-	var tex = NpcBridge.render_texture(
+	var img = NpcBridge.render_image(
 		current_app,
 		amputations,
 		anim_option.selected,
 		dir_option.selected,
 		anim_time
 	)
-	sprite.texture = tex
+
+	if _active_texture == null:
+		_active_texture = ImageTexture.create_from_image(img)
+		sprite.texture = _active_texture
+	else:
+		_active_texture.update(img)

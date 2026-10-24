@@ -1,79 +1,121 @@
 #include "npc/generator.hpp"
-#include <fstream>
-#include <vector>
+#include "test_framework.hpp"
 #include <iostream>
+#include <fstream>
+#include <iomanip>
+#include <vector>
+#include <string>
 
-void save_ppm(const std::string& path, const npc::PixelBuffer& buf, int scale = 6) {
-    std::ofstream out(path, std::ios::binary);
-    int sw = buf.width * scale;
-    int sh = buf.height * scale;
-    out << "P6\n" << sw << " " << sh << "\n255\n";
+// Generates 7,360 reference combinations as specified in BRD Section 7.1.1:
+// 1. Base group: seeds 1..100, 6 animation states, 4 directions, 3 animation times (0.0, 0.25, 0.5) = 7,200
+// 2. Condition group: seeds 1..10, Idle, South, 0.0s, 16 scenarios per seed (10 amputations + 6 injuries) = 160
+// Total = 7,360 combinations
 
-    // Checkerboard backdrop for transparency
-    for (int y = 0; y < sh; ++y) {
-        int src_y = y / scale;
-        for (int x = 0; x < sw; ++x) {
-            int src_x = x / scale;
-            auto p = buf.get_pixel(src_x, src_y);
-            uint8_t r = 60, g = 64, b = 75; // Theme background
-            if (((x / 12) + (y / 12)) % 2 == 1) {
-                r = 50; g = 54; b = 65;
+int main(int argc, char** argv) {
+    std::string out_path = "tests/golden/matriks-acuan.txt";
+    if (argc > 1) {
+        out_path = argv[1];
+    }
+
+    std::ofstream out(out_path);
+    if (!out.is_open()) {
+        std::cerr << "Failed to open output file: " << out_path << "\n";
+        return 1;
+    }
+
+    std::cout << "Generating 7,360 golden fixture hashes into " << out_path << "...\n";
+    int count = 0;
+
+    // 1. Base group (7,200)
+    for (uint64_t seed = 1; seed <= 100; ++seed) {
+        auto app = npc::CharacterGenerator::generate_from_seed(seed, static_cast<uint32_t>(seed));
+        npc::PhysicalConditionSet cond;
+
+        for (int s = 0; s <= static_cast<int>(npc::AnimationState::Swim); ++s) {
+            for (int d = 0; d <= static_cast<int>(npc::Direction::West); ++d) {
+                float times[3] = {0.0f, 0.25f, 0.5f};
+                for (float t : times) {
+                    npc::AnimationCommand cmd{
+                        static_cast<npc::AnimationState>(s),
+                        static_cast<npc::Direction>(d),
+                        t,
+                        1.0f
+                    };
+                    auto buf = npc::CharacterGenerator::render(app, cond, cmd);
+
+                    std::vector<uint8_t> raw_rgba(buf.pixels.size() * 4);
+                    for (size_t i = 0; i < buf.pixels.size(); ++i) {
+                        raw_rgba[i * 4 + 0] = buf.pixels[i].r;
+                        raw_rgba[i * 4 + 1] = buf.pixels[i].g;
+                        raw_rgba[i * 4 + 2] = buf.pixels[i].b;
+                        raw_rgba[i * 4 + 3] = buf.pixels[i].a;
+                    }
+                    uint64_t hash = npc::test::fnv1a_64(raw_rgba.data(), raw_rgba.size());
+
+                    out << seed << " "
+                        << s << " "
+                        << d << " "
+                        << std::fixed << std::setprecision(2) << t << " "
+                        << "base "
+                        << std::hex << std::setw(16) << std::setfill('0') << hash << std::dec << "\n";
+                    count++;
+                }
             }
-            if (p.a > 0) {
-                float alpha = p.a / 255.0f;
-                r = static_cast<uint8_t>(p.r * alpha + r * (1.0f - alpha));
-                g = static_cast<uint8_t>(p.g * alpha + g * (1.0f - alpha));
-                b = static_cast<uint8_t>(p.b * alpha + b * (1.0f - alpha));
-            }
-            out.put(r);
-            out.put(g);
-            out.put(b);
         }
     }
-}
 
-int main() {
-    npc::PhysicalConditionSet cond;
+    // 2. Condition group (160)
+    for (uint64_t seed = 1; seed <= 10; ++seed) {
+        auto app = npc::CharacterGenerator::generate_from_seed(seed, static_cast<uint32_t>(seed));
+        npc::AnimationCommand cmd{npc::AnimationState::Idle, npc::Direction::South, 0.0f, 1.0f};
 
-    // 1. Trim Jim (Average)
-    auto trim = npc::CharacterGenerator::generate_from_seed(101, 1);
-    trim.body.body_mass = 0.5f;
-    trim.body.muscularity = 0.5f;
-    auto buf_trim = npc::CharacterGenerator::render(trim, cond, {npc::AnimationState::Idle, npc::Direction::South, 0.0f, 1.0f});
-    save_ppm("docs/references/fixture_trim_south.ppm", buf_trim);
+        // 10 amputations
+        for (int p = 0; p < static_cast<int>(npc::BodyPart::Count); ++p) {
+            npc::PhysicalConditionSet cond;
+            cond.set_amputated(static_cast<npc::BodyPart>(p), true);
 
-    // 2. Gym Jim (Muscular)
-    auto gym = npc::CharacterGenerator::generate_from_seed(101, 1);
-    gym.body.body_mass = 0.5f;
-    gym.body.muscularity = 0.95f;
-    auto buf_gym = npc::CharacterGenerator::render(gym, cond, {npc::AnimationState::Idle, npc::Direction::South, 0.0f, 1.0f});
-    save_ppm("docs/references/fixture_gym_south.ppm", buf_gym);
+            auto buf = npc::CharacterGenerator::render(app, cond, cmd);
+            std::vector<uint8_t> raw_rgba(buf.pixels.size() * 4);
+            for (size_t i = 0; i < buf.pixels.size(); ++i) {
+                raw_rgba[i * 4 + 0] = buf.pixels[i].r;
+                raw_rgba[i * 4 + 1] = buf.pixels[i].g;
+                raw_rgba[i * 4 + 2] = buf.pixels[i].b;
+                raw_rgba[i * 4 + 3] = buf.pixels[i].a;
+            }
+            uint64_t hash = npc::test::fnv1a_64(raw_rgba.data(), raw_rgba.size());
 
-    // 3. Slim Jim (Slim)
-    auto slim = npc::CharacterGenerator::generate_from_seed(101, 1);
-    slim.body.body_mass = 0.15f;
-    slim.body.muscularity = 0.15f;
-    auto buf_slim = npc::CharacterGenerator::render(slim, cond, {npc::AnimationState::Idle, npc::Direction::South, 0.0f, 1.0f});
-    save_ppm("docs/references/fixture_slim_south.ppm", buf_slim);
+            out << seed << " 0 0 0.00 amp_" << p << " "
+                << std::hex << std::setw(16) << std::setfill('0') << hash << std::dec << "\n";
+            count++;
+        }
 
-    // 4. Chin Jim (Heavy)
-    auto chin = npc::CharacterGenerator::generate_from_seed(101, 1);
-    chin.body.body_mass = 0.95f;
-    chin.body.muscularity = 0.3f;
-    auto buf_chin = npc::CharacterGenerator::render(chin, cond, {npc::AnimationState::Idle, npc::Direction::South, 0.0f, 1.0f});
-    save_ppm("docs/references/fixture_chin_south.ppm", buf_chin);
+        // 6 injuries on Torso
+        for (int c = 0; c <= static_cast<int>(npc::ConditionType::BloodStain); ++c) {
+            npc::PhysicalConditionSet cond;
+            npc::InjuryCondition inj;
+            inj.condition_id = static_cast<uint32_t>(c + 1);
+            inj.body_part = npc::BodyPart::Torso;
+            inj.type = static_cast<npc::ConditionType>(c);
+            inj.severity = 0.5f;
+            inj.active = true;
+            cond.injuries.push_back(inj);
 
-    // 5. Posture East side comparison: Upright vs Hunched
-    auto post_upright = trim;
-    post_upright.body.posture = 0.0f;
-    auto buf_upright = npc::CharacterGenerator::render(post_upright, cond, {npc::AnimationState::Idle, npc::Direction::East, 0.0f, 1.0f});
-    save_ppm("docs/references/fixture_posture_upright_east.ppm", buf_upright);
+            auto buf = npc::CharacterGenerator::render(app, cond, cmd);
+            std::vector<uint8_t> raw_rgba(buf.pixels.size() * 4);
+            for (size_t i = 0; i < buf.pixels.size(); ++i) {
+                raw_rgba[i * 4 + 0] = buf.pixels[i].r;
+                raw_rgba[i * 4 + 1] = buf.pixels[i].g;
+                raw_rgba[i * 4 + 2] = buf.pixels[i].b;
+                raw_rgba[i * 4 + 3] = buf.pixels[i].a;
+            }
+            uint64_t hash = npc::test::fnv1a_64(raw_rgba.data(), raw_rgba.size());
 
-    auto post_hunched = trim;
-    post_hunched.body.posture = 1.0f;
-    auto buf_hunched = npc::CharacterGenerator::render(post_hunched, cond, {npc::AnimationState::Idle, npc::Direction::East, 0.0f, 1.0f});
-    save_ppm("docs/references/fixture_posture_hunched_east.ppm", buf_hunched);
+            out << seed << " 0 0 0.00 inj_" << c << " "
+                << std::hex << std::setw(16) << std::setfill('0') << hash << std::dec << "\n";
+            count++;
+        }
+    }
 
-    std::cout << "Visual PPM fixtures generated successfully.\n";
+    std::cout << "Done! Generated " << count << " reference combinations.\n";
     return 0;
 }
