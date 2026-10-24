@@ -1,0 +1,331 @@
+#pragma once
+
+#include "types.hpp"
+#include "appearance.hpp"
+#include "conditions.hpp"
+#include <string>
+#include <vector>
+#include <cmath>
+#include <algorithm>
+
+namespace npc {
+
+// Schema version for CharacterProfile
+inline constexpr uint32_t PROFILE_SCHEMA_VERSION = 1;
+
+// Anatomy configuration domain
+struct AnatomyProfile {
+    float height{0.5f};       // 0.0 (short) - 1.0 (tall)
+    float body_mass{0.5f};    // 0.0 (skinny) - 1.0 (fat/heavy)
+    float muscularity{0.5f};  // 0.0 (lean) - 1.0 (muscular)
+    float posture{0.0f};      // 0.0 (upright) - 1.0 (hunched)
+    float head_scale{0.5f};   // 0.0 - 1.0
+    float torso_ratio{0.5f};  // 0.0 - 1.0
+    float arm_ratio{0.5f};    // 0.0 - 1.0
+    float leg_ratio{0.5f};    // 0.0 - 1.0
+
+    bool operator==(const AnatomyProfile& other) const = default;
+
+    // Convert from legacy BodyConfiguration
+    static AnatomyProfile from_legacy(const BodyConfiguration& b) {
+        return AnatomyProfile{
+            .height = b.height,
+            .body_mass = b.body_mass,
+            .muscularity = b.muscularity,
+            .posture = b.posture,
+            .head_scale = b.head_scale,
+            .torso_ratio = b.torso_ratio,
+            .arm_ratio = b.arm_ratio,
+            .leg_ratio = b.leg_ratio
+        };
+    }
+
+    // Convert to legacy BodyConfiguration
+    BodyConfiguration to_legacy() const {
+        return BodyConfiguration{
+            .height = height,
+            .body_mass = body_mass,
+            .muscularity = muscularity,
+            .posture = posture,
+            .head_scale = head_scale,
+            .torso_ratio = torso_ratio,
+            .arm_ratio = arm_ratio,
+            .leg_ratio = leg_ratio
+        };
+    }
+};
+
+// Appearance configuration domain
+struct AppearanceProfile {
+    uint8_t eye_shape{0};
+    uint8_t eye_spacing{1};
+    ColorRGBA eye_color{40, 30, 20, 255};
+    uint8_t nose_shape{0};
+    uint8_t mouth_shape{0};
+    uint8_t hair_style{0};    // 0: Bald, 1: Short, 2: Medium, 3: Long
+    ColorRGBA hair_color{50, 40, 30, 255};
+    ColorRGBA skin_color{225, 185, 150, 255};
+    ColorRGBA shirt_color{60, 90, 140, 255};
+    ColorRGBA pants_color{45, 50, 60, 255};
+    Expression expression{Expression::Neutral};
+
+    bool operator==(const AppearanceProfile& other) const = default;
+
+    static AppearanceProfile from_legacy(const FaceConfiguration& f) {
+        return AppearanceProfile{
+            .eye_shape = f.eye_shape,
+            .eye_spacing = f.eye_spacing,
+            .eye_color = f.eye_color,
+            .nose_shape = f.nose_shape,
+            .mouth_shape = f.mouth_shape,
+            .hair_style = f.hair_style,
+            .hair_color = f.hair_color,
+            .skin_color = f.skin_color,
+            .shirt_color = f.shirt_color,
+            .pants_color = f.pants_color,
+            .expression = f.expression
+        };
+    }
+
+    FaceConfiguration to_legacy() const {
+        return FaceConfiguration{
+            .eye_shape = eye_shape,
+            .eye_spacing = eye_spacing,
+            .eye_color = eye_color,
+            .nose_shape = nose_shape,
+            .mouth_shape = mouth_shape,
+            .hair_style = hair_style,
+            .hair_color = hair_color,
+            .skin_color = skin_color,
+            .shirt_color = shirt_color,
+            .pants_color = pants_color,
+            .expression = expression
+        };
+    }
+};
+
+// Physical condition configuration domain
+struct PhysicalConditionProfile {
+    PhysicalConditionSet conditions;
+
+    bool operator==(const PhysicalConditionProfile& other) const {
+        if (conditions.amputations != other.conditions.amputations) return false;
+        if (conditions.injuries.size() != other.conditions.injuries.size()) return false;
+        for (size_t i = 0; i < conditions.injuries.size(); ++i) {
+            const auto& a = conditions.injuries[i];
+            const auto& b = other.conditions.injuries[i];
+            if (a.condition_id != b.condition_id ||
+                a.body_part != b.body_part ||
+                a.type != b.type ||
+                std::fabs(a.severity - b.severity) > 1e-5f ||
+                a.visual_seed != b.visual_seed ||
+                a.active != b.active ||
+                a.healed != b.healed) {
+                return false;
+            }
+        }
+        return true;
+    }
+};
+
+// Generation configuration domain
+struct GenerationProfile {
+    uint32_t npc_id{1};
+    uint64_t seed{12345};
+    uint32_t generator_version{1};
+
+    bool operator==(const GenerationProfile& other) const = default;
+};
+
+// Canonical Character Profile
+struct CharacterProfile {
+    uint32_t schema_version{PROFILE_SCHEMA_VERSION};
+    GenerationProfile generation;
+    AnatomyProfile anatomy;
+    AppearanceProfile appearance;
+    PhysicalConditionProfile physical;
+
+    bool operator==(const CharacterProfile& other) const = default;
+
+    static CharacterProfile create_default(uint32_t npc_id = 1, uint64_t seed = 12345) {
+        CharacterProfile p;
+        p.schema_version = PROFILE_SCHEMA_VERSION;
+        p.generation.npc_id = npc_id;
+        p.generation.seed = seed;
+        p.generation.generator_version = 1;
+        p.anatomy = AnatomyProfile{};
+        p.appearance = AppearanceProfile{};
+        p.physical = PhysicalConditionProfile{};
+        return p;
+    }
+
+    // Convert from legacy HumanAppearance + PhysicalConditionSet
+    static CharacterProfile from_legacy(const HumanAppearance& app, const PhysicalConditionSet& cond = {}) {
+        CharacterProfile p;
+        p.schema_version = PROFILE_SCHEMA_VERSION;
+        p.generation.npc_id = app.npc_id;
+        p.generation.seed = app.appearance_seed;
+        p.generation.generator_version = app.generator_version;
+        p.anatomy = AnatomyProfile::from_legacy(app.body);
+        p.appearance = AppearanceProfile::from_legacy(app.face);
+        p.physical.conditions = cond;
+        return p;
+    }
+
+    // Convert to legacy HumanAppearance
+    HumanAppearance to_legacy_appearance() const {
+        HumanAppearance app;
+        app.npc_id = generation.npc_id;
+        app.appearance_seed = generation.seed;
+        app.generator_version = generation.generator_version;
+        app.body = anatomy.to_legacy();
+        app.face = appearance.to_legacy();
+        return app;
+    }
+};
+
+// Validation outcome
+enum class ValidationOutcome {
+    Valid,
+    ValidNormalized,
+    Invalid
+};
+
+struct ValidationResult {
+    ValidationOutcome outcome{ValidationOutcome::Valid};
+    std::vector<std::string> issues;
+
+    bool is_ok() const {
+        return outcome != ValidationOutcome::Invalid;
+    }
+};
+
+class ProfileValidator {
+public:
+    static ValidationResult validate(const CharacterProfile& profile) {
+        ValidationResult result;
+
+        if (profile.schema_version != PROFILE_SCHEMA_VERSION) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("Unsupported schema version: " + std::to_string(profile.schema_version));
+            return result;
+        }
+
+        // Validate Anatomy
+        auto check_float = [&](float val, const std::string& name) {
+            if (std::isnan(val) || std::isinf(val)) {
+                result.outcome = ValidationOutcome::Invalid;
+                result.issues.push_back(name + " is NaN or Inf");
+            } else if (val < 0.0f || val > 1.0f) {
+                result.outcome = ValidationOutcome::Invalid;
+                result.issues.push_back(name + " out of range [0.0, 1.0]: " + std::to_string(val));
+            }
+        };
+
+        check_float(profile.anatomy.height, "anatomy.height");
+        check_float(profile.anatomy.body_mass, "anatomy.body_mass");
+        check_float(profile.anatomy.muscularity, "anatomy.muscularity");
+        check_float(profile.anatomy.posture, "anatomy.posture");
+        check_float(profile.anatomy.head_scale, "anatomy.head_scale");
+        check_float(profile.anatomy.torso_ratio, "anatomy.torso_ratio");
+        check_float(profile.anatomy.arm_ratio, "anatomy.arm_ratio");
+        check_float(profile.anatomy.leg_ratio, "anatomy.leg_ratio");
+
+        // Validate Appearance
+        if (static_cast<uint8_t>(profile.appearance.expression) > static_cast<uint8_t>(Expression::Surprised)) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("appearance.expression invalid enum");
+        }
+
+        // Validate Injuries
+        for (size_t i = 0; i < profile.physical.conditions.injuries.size(); ++i) {
+            const auto& inj = profile.physical.conditions.injuries[i];
+            if (static_cast<uint8_t>(inj.body_part) >= static_cast<uint8_t>(BodyPart::Count)) {
+                result.outcome = ValidationOutcome::Invalid;
+                result.issues.push_back("injury[" + std::to_string(i) + "].body_part out of bounds");
+            }
+            if (static_cast<uint8_t>(inj.type) > static_cast<uint8_t>(ConditionType::BloodStain)) {
+                result.outcome = ValidationOutcome::Invalid;
+                result.issues.push_back("injury[" + std::to_string(i) + "].type out of bounds");
+            }
+            if (std::isnan(inj.severity) || std::isinf(inj.severity) || inj.severity < 0.0f || inj.severity > 1.0f) {
+                result.outcome = ValidationOutcome::Invalid;
+                result.issues.push_back("injury[" + std::to_string(i) + "].severity out of bounds [0.0, 1.0]");
+            }
+        }
+
+        return result;
+    }
+
+    // Normalization policy: clamps floats within [0.0, 1.0] if finite, clamps enums, returns outcome
+    static ValidationResult normalize(CharacterProfile& profile) {
+        ValidationResult result;
+
+        if (profile.schema_version != PROFILE_SCHEMA_VERSION) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("Unsupported schema version: " + std::to_string(profile.schema_version));
+            return result;
+        }
+
+        bool normalized = false;
+
+        auto normalize_float = [&](float& val, const std::string& name) {
+            if (std::isnan(val) || std::isinf(val)) {
+                result.outcome = ValidationOutcome::Invalid;
+                result.issues.push_back(name + " is NaN or Inf");
+            } else if (val < 0.0f || val > 1.0f) {
+                val = std::clamp(val, 0.0f, 1.0f);
+                normalized = true;
+                result.issues.push_back(name + " clamped to [0.0, 1.0]");
+            }
+        };
+
+        normalize_float(profile.anatomy.height, "anatomy.height");
+        normalize_float(profile.anatomy.body_mass, "anatomy.body_mass");
+        normalize_float(profile.anatomy.muscularity, "anatomy.muscularity");
+        normalize_float(profile.anatomy.posture, "anatomy.posture");
+        normalize_float(profile.anatomy.head_scale, "anatomy.head_scale");
+        normalize_float(profile.anatomy.torso_ratio, "anatomy.torso_ratio");
+        normalize_float(profile.anatomy.arm_ratio, "anatomy.arm_ratio");
+        normalize_float(profile.anatomy.leg_ratio, "anatomy.leg_ratio");
+
+        if (result.outcome == ValidationOutcome::Invalid) {
+            return result;
+        }
+
+        if (static_cast<uint8_t>(profile.appearance.expression) > static_cast<uint8_t>(Expression::Surprised)) {
+            profile.appearance.expression = Expression::Neutral;
+            normalized = true;
+            result.issues.push_back("appearance.expression normalized to Neutral");
+        }
+
+        for (size_t i = 0; i < profile.physical.conditions.injuries.size(); ++i) {
+            auto& inj = profile.physical.conditions.injuries[i];
+            if (static_cast<uint8_t>(inj.body_part) >= static_cast<uint8_t>(BodyPart::Count)) {
+                result.outcome = ValidationOutcome::Invalid;
+                result.issues.push_back("injury[" + std::to_string(i) + "].body_part out of bounds");
+                return result;
+            }
+            if (static_cast<uint8_t>(inj.type) > static_cast<uint8_t>(ConditionType::BloodStain)) {
+                result.outcome = ValidationOutcome::Invalid;
+                result.issues.push_back("injury[" + std::to_string(i) + "].type out of bounds");
+                return result;
+            }
+            if (std::isnan(inj.severity) || std::isinf(inj.severity)) {
+                result.outcome = ValidationOutcome::Invalid;
+                result.issues.push_back("injury[" + std::to_string(i) + "].severity NaN or Inf");
+                return result;
+            }
+            if (inj.severity < 0.0f || inj.severity > 1.0f) {
+                inj.severity = std::clamp(inj.severity, 0.0f, 1.0f);
+                normalized = true;
+                result.issues.push_back("injury[" + std::to_string(i) + "].severity clamped to [0.0, 1.0]");
+            }
+        }
+
+        result.outcome = normalized ? ValidationOutcome::ValidNormalized : ValidationOutcome::Valid;
+        return result;
+    }
+};
+
+} // namespace npc

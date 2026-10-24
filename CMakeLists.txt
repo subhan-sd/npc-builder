@@ -79,6 +79,14 @@ target_link_libraries(test_serializer PRIVATE npc_core)
 target_include_directories(test_serializer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 add_test(NAME SerializerVerificationTest COMMAND test_serializer)
 
+# CharacterProfile System Test (v0.3.1)
+add_executable(test_profile
+    tests/test_profile.cpp
+)
+target_link_libraries(test_profile PRIVATE npc_core npc_builder)
+target_include_directories(test_profile PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+add_test(NAME CharacterProfileTest COMMAND test_profile)
+
 # Benchmark Utility
 add_executable(benchmark_render
     tests/benchmark_render.cpp

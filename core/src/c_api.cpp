@@ -10,6 +10,173 @@ NPC_C_EXPORT uint32_t npc_get_api_version(void) {
     return NPC_API_VERSION;
 }
 
+NPC_C_EXPORT int npc_profile_create_default(
+    uint32_t npc_id,
+    uint64_t seed,
+    CNpcProfile* out_profile
+) {
+    if (!out_profile) return NPC_ERR_INVALID_ARGUMENT;
+    if (out_profile->struct_size != sizeof(CNpcProfile)) return NPC_ERR_VERSION_MISMATCH;
+
+    auto p = npc::CharacterProfile::create_default(npc_id, seed);
+
+    out_profile->api_version = NPC_API_VERSION;
+    out_profile->schema_version = p.schema_version;
+    out_profile->npc_id = p.generation.npc_id;
+    out_profile->seed = p.generation.seed;
+    out_profile->generator_version = p.generation.generator_version;
+
+    out_profile->height = p.anatomy.height;
+    out_profile->body_mass = p.anatomy.body_mass;
+    out_profile->muscularity = p.anatomy.muscularity;
+    out_profile->posture = p.anatomy.posture;
+    out_profile->head_scale = p.anatomy.head_scale;
+    out_profile->torso_ratio = p.anatomy.torso_ratio;
+    out_profile->arm_ratio = p.anatomy.arm_ratio;
+    out_profile->leg_ratio = p.anatomy.leg_ratio;
+
+    out_profile->eye_shape = p.appearance.eye_shape;
+    out_profile->eye_spacing = p.appearance.eye_spacing;
+    out_profile->nose_shape = p.appearance.nose_shape;
+    out_profile->mouth_shape = p.appearance.mouth_shape;
+    out_profile->hair_style = p.appearance.hair_style;
+    out_profile->expression = static_cast<uint8_t>(p.appearance.expression);
+
+    out_profile->skin_color = {p.appearance.skin_color.r, p.appearance.skin_color.g, p.appearance.skin_color.b, p.appearance.skin_color.a};
+    out_profile->eye_color = {p.appearance.eye_color.r, p.appearance.eye_color.g, p.appearance.eye_color.b, p.appearance.eye_color.a};
+    out_profile->hair_color = {p.appearance.hair_color.r, p.appearance.hair_color.g, p.appearance.hair_color.b, p.appearance.hair_color.a};
+    out_profile->shirt_color = {p.appearance.shirt_color.r, p.appearance.shirt_color.g, p.appearance.shirt_color.b, p.appearance.shirt_color.a};
+    out_profile->pants_color = {p.appearance.pants_color.r, p.appearance.pants_color.g, p.appearance.pants_color.b, p.appearance.pants_color.a};
+
+    for (size_t i = 0; i < 10; ++i) {
+        out_profile->amputations_mask[i] = p.physical.conditions.amputations[i] ? 1 : 0;
+    }
+
+    return NPC_SUCCESS;
+}
+
+NPC_C_EXPORT int npc_profile_validate(
+    const CNpcProfile* profile
+) {
+    if (!profile) return NPC_ERR_INVALID_ARGUMENT;
+    if (profile->struct_size != sizeof(CNpcProfile)) return NPC_ERR_VERSION_MISMATCH;
+    if (profile->schema_version != npc::PROFILE_SCHEMA_VERSION) return NPC_ERR_VALIDATION_FAIL;
+
+    npc::CharacterProfile p;
+    p.schema_version = profile->schema_version;
+    p.generation.npc_id = profile->npc_id;
+    p.generation.seed = profile->seed;
+    p.generation.generator_version = profile->generator_version;
+
+    p.anatomy.height = profile->height;
+    p.anatomy.body_mass = profile->body_mass;
+    p.anatomy.muscularity = profile->muscularity;
+    p.anatomy.posture = profile->posture;
+    p.anatomy.head_scale = profile->head_scale;
+    p.anatomy.torso_ratio = profile->torso_ratio;
+    p.anatomy.arm_ratio = profile->arm_ratio;
+    p.anatomy.leg_ratio = profile->leg_ratio;
+
+    p.appearance.eye_shape = profile->eye_shape;
+    p.appearance.eye_spacing = profile->eye_spacing;
+    p.appearance.nose_shape = profile->nose_shape;
+    p.appearance.mouth_shape = profile->mouth_shape;
+    p.appearance.hair_style = profile->hair_style;
+    p.appearance.expression = static_cast<npc::Expression>(profile->expression);
+
+    auto res = npc::ProfileValidator::validate(p);
+    return res.is_ok() ? NPC_SUCCESS : NPC_ERR_VALIDATION_FAIL;
+}
+
+NPC_C_EXPORT int npc_profile_render(
+    const CNpcProfile* c_profile,
+    const CNpcInjury* injuries,
+    uint32_t injury_count,
+    uint8_t anim_state,
+    uint8_t direction,
+    float anim_time,
+    uint8_t* out_rgba_buffer,
+    size_t buffer_size
+) {
+    if (!c_profile || !out_rgba_buffer) return NPC_ERR_INVALID_ARGUMENT;
+    if (c_profile->struct_size != sizeof(CNpcProfile)) return NPC_ERR_VERSION_MISMATCH;
+    if (buffer_size < static_cast<size_t>(npc::CharacterGenerator::CANVAS_WIDTH * npc::CharacterGenerator::CANVAS_HEIGHT * 4)) {
+        return NPC_ERR_BUFFER_TOO_SMALL;
+    }
+    if (anim_state > static_cast<uint8_t>(npc::AnimationState::Swim) ||
+        direction > static_cast<uint8_t>(npc::Direction::West)) {
+        return NPC_ERR_INVALID_ENUM;
+    }
+
+    npc::CharacterProfile p;
+    p.schema_version = c_profile->schema_version;
+    p.generation.npc_id = c_profile->npc_id;
+    p.generation.seed = c_profile->seed;
+    p.generation.generator_version = c_profile->generator_version;
+
+    p.anatomy.height = c_profile->height;
+    p.anatomy.body_mass = c_profile->body_mass;
+    p.anatomy.muscularity = c_profile->muscularity;
+    p.anatomy.posture = c_profile->posture;
+    p.anatomy.head_scale = c_profile->head_scale;
+    p.anatomy.torso_ratio = c_profile->torso_ratio;
+    p.anatomy.arm_ratio = c_profile->arm_ratio;
+    p.anatomy.leg_ratio = c_profile->leg_ratio;
+
+    p.appearance.eye_shape = c_profile->eye_shape;
+    p.appearance.eye_spacing = c_profile->eye_spacing;
+    p.appearance.nose_shape = c_profile->nose_shape;
+    p.appearance.mouth_shape = c_profile->mouth_shape;
+    p.appearance.hair_style = c_profile->hair_style;
+    p.appearance.expression = static_cast<npc::Expression>(c_profile->expression);
+
+    p.appearance.skin_color = {c_profile->skin_color.r, c_profile->skin_color.g, c_profile->skin_color.b, c_profile->skin_color.a};
+    p.appearance.eye_color = {c_profile->eye_color.r, c_profile->eye_color.g, c_profile->eye_color.b, c_profile->eye_color.a};
+    p.appearance.hair_color = {c_profile->hair_color.r, c_profile->hair_color.g, c_profile->hair_color.b, c_profile->hair_color.a};
+    p.appearance.shirt_color = {c_profile->shirt_color.r, c_profile->shirt_color.g, c_profile->shirt_color.b, c_profile->shirt_color.a};
+    p.appearance.pants_color = {c_profile->pants_color.r, c_profile->pants_color.g, c_profile->pants_color.b, c_profile->pants_color.a};
+
+    for (size_t i = 0; i < 10; ++i) {
+        if (c_profile->amputations_mask[i] != 0) {
+            p.physical.conditions.set_amputated(static_cast<npc::BodyPart>(i), true);
+        }
+    }
+
+    if (injuries && injury_count > 0) {
+        for (uint32_t i = 0; i < injury_count; ++i) {
+            const auto& c_inj = injuries[i];
+            if (c_inj.body_part < static_cast<uint8_t>(npc::BodyPart::Count) &&
+                c_inj.type <= static_cast<uint8_t>(npc::ConditionType::BloodStain)) {
+                npc::InjuryCondition inj;
+                inj.condition_id = c_inj.condition_id;
+                inj.body_part = static_cast<npc::BodyPart>(c_inj.body_part);
+                inj.type = static_cast<npc::ConditionType>(c_inj.type);
+                inj.severity = std::clamp(c_inj.severity, 0.0f, 1.0f);
+                inj.visual_seed = c_inj.visual_seed;
+                inj.active = c_inj.active != 0;
+                inj.healed = c_inj.healed != 0;
+                p.physical.conditions.injuries.push_back(inj);
+            }
+        }
+    }
+
+    npc::AnimationCommand cmd;
+    cmd.state = static_cast<npc::AnimationState>(anim_state);
+    cmd.direction = static_cast<npc::Direction>(direction);
+    cmd.anim_time = anim_time;
+    cmd.speed = 1.0f;
+
+    auto buf = npc::CharacterGenerator::render_profile(p, cmd);
+    for (size_t i = 0; i < buf.pixels.size(); ++i) {
+        out_rgba_buffer[i * 4 + 0] = buf.pixels[i].r;
+        out_rgba_buffer[i * 4 + 1] = buf.pixels[i].g;
+        out_rgba_buffer[i * 4 + 2] = buf.pixels[i].b;
+        out_rgba_buffer[i * 4 + 3] = buf.pixels[i].a;
+    }
+
+    return NPC_SUCCESS;
+}
+
 NPC_C_EXPORT int npc_generate_appearance_v2(
     uint64_t seed,
     uint32_t npc_id,
