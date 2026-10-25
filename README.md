@@ -102,16 +102,25 @@ Setiap warna kulit diturunkan menjadi 5 tingkatan kontras:
 
 ### 1. Build C++ Core, Tests, & GDExtension
 ```bash
-# Konfigurasi dan compile (Release)
+# Linux / macOS (Release)
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
+cmake --build build --target npc_builder_extension --config Release
+
+# Windows (Command Prompt / PowerShell via Visual Studio 2022)
+cmake -B build
+cmake --build build --config Release
+cmake --build build --target npc_builder_extension --config Release
 
 # Jalankan seluruh rangkaian test otomatis CTest
-ctest --test-dir build --output-on-failure
+ctest --test-dir build -C Release --output-on-failure
 
 # Jalankan benchmark render mikro
-./build/benchmark_render
+./build/benchmark_render  # Linux/macOS
+# build\Release\benchmark_render.exe  # Windows
 ```
+
+> **Catatan Windows Godot:** Godot untuk Windows memerlukan biner `godot/bin/npc_builder_extension.dll`. Jika menjalankan preview pada host Windows (misalnya repositori diakses melalui WSL2 atau checkout native), pastikan target `npc_builder_extension` telah dikompilasi menggunakan compiler Windows (MSVC) agar DLL tersedia di `godot/bin/`. Biner Linux `.so` tidak dapat dimuat oleh Godot Windows executable.
 
 ### 2. Menjalankan Godot Preview Studio (GDExtension)
 1. Pastikan ekstensi `godot/bin/libnpc_builder_extension.so` (Linux) atau `.dll` (Windows) telah terkompilasi melalui CMake.

@@ -64,7 +64,18 @@ func _init() -> void:
 		push_error("FAIL: render_profile returned null or wrong dimensions")
 		quit(1)
 		return
-	print("render_profile OK: dimensions =", img.get_width(), "x", img.get_height())
+
+	# Verify that the rendered sprite is not a blank/transparent texture
+	var non_transparent_pixels = 0
+	for y in range(img.get_height()):
+		for x in range(img.get_width()):
+			if img.get_pixel(x, y).a > 0.0:
+				non_transparent_pixels += 1
+	if non_transparent_pixels == 0:
+		push_error("FAIL: render_profile returned a completely transparent/blank image!")
+		quit(1)
+		return
+	print("render_profile OK: dimensions =", img.get_width(), "x", img.get_height(), "visible_pixels =", non_transparent_pixels)
 
 	# Test render_profile rejects invalid profile
 	var rejected_img = gen.render_profile(invalid_prof, 0, 0, 0.0)
