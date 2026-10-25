@@ -8,13 +8,6 @@
 
 namespace npc {
 
-struct AnimationCommand {
-    AnimationState state{AnimationState::Idle};
-    Direction direction{Direction::South};
-    float anim_time{0.0f}; // seconds for cycle evaluation
-    float speed{1.0f};
-};
-
 class CharacterGenerator {
 public:
     static constexpr int CANVAS_WIDTH = 32;

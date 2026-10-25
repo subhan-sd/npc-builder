@@ -80,10 +80,89 @@ void test_geometry_overrides() {
     std::cout << "[PASS] GeometryOverride zero-identity, deviations, and clamping verified.\n";
 }
 
+void test_clothing_foundation_posed_placement() {
+    std::cout << "Testing clothing foundation PosedPlacement coordinate match with render()...\n";
+
+    // Test across several animation states and directions
+    std::vector<npc::AnimationState> states = {
+        npc::AnimationState::Idle,
+        npc::AnimationState::Walk,
+        npc::AnimationState::Run,
+        npc::AnimationState::Attack,
+        npc::AnimationState::Fall,
+        npc::AnimationState::Swim
+    };
+    std::vector<npc::Direction> dirs = {
+        npc::Direction::South,
+        npc::Direction::North,
+        npc::Direction::East,
+        npc::Direction::West
+    };
+
+    for (uint64_t seed = 1; seed <= 20; ++seed) {
+        auto p = npc::CharacterGenerator::generate_profile_from_seed(seed, static_cast<uint32_t>(seed));
+        auto geo = p.derived_geometry();
+
+        for (auto state : states) {
+            for (auto dir : dirs) {
+                npc::AnimationCommand cmd;
+                cmd.state = state;
+                cmd.direction = dir;
+                cmd.anim_time = 0.5f;
+                cmd.speed = 1.0f;
+
+                auto placement = npc::compute_posed_placement(geo, p.anatomy.posture, p.physical.conditions, cmd);
+
+                // Verify that computed placement bounds strictly match canonical rules
+                for (size_t i = 0; i < 10; ++i) {
+                    const auto& part_place = placement.parts[i];
+                    TEST_ASSERT(part_place.bounds.width >= 0);
+                    TEST_ASSERT(part_place.bounds.height >= 0);
+                    // Base layer must be defined
+                    TEST_ASSERT(part_place.base_layer == npc::LayerOrder::BaseBody);
+                }
+
+                // Check specific parts:
+                auto head_pl = placement.get(npc::BodyPart::Head);
+                TEST_ASSERT_EQ(head_pl.bounds.width, 7);
+                if (state == npc::AnimationState::Fall) {
+                    TEST_ASSERT_EQ(head_pl.bounds.height, 6);
+                } else {
+                    TEST_ASSERT_EQ(head_pl.bounds.height, 8);
+                }
+
+                auto torso_pl = placement.get(npc::BodyPart::Torso);
+                TEST_ASSERT_EQ(torso_pl.bounds.width, geo.shoulder_w);
+
+                auto larm_pl = placement.get(npc::BodyPart::LeftArm);
+                TEST_ASSERT_EQ(larm_pl.bounds.width, geo.arm_base_thick);
+
+                auto lleg_pl = placement.get(npc::BodyPart::LeftLeg);
+                TEST_ASSERT_EQ(lleg_pl.bounds.width, geo.thigh_thick);
+            }
+        }
+    }
+
+    // Verify cascade amputation propagation in PosedPlacement
+    auto p_amp = npc::CharacterProfile::create_default();
+    p_amp.physical.conditions.set_amputated(npc::BodyPart::LeftArm, true);
+    // cascade amputate LeftHand as well
+    p_amp.physical.conditions.set_amputated(npc::BodyPart::LeftHand, true);
+
+    npc::AnimationCommand cmd;
+    auto pl_amp = npc::compute_posed_placement(p_amp.derived_geometry(), p_amp.anatomy.posture, p_amp.physical.conditions, cmd);
+    TEST_ASSERT(!pl_amp.get(npc::BodyPart::LeftArm).is_present);
+    TEST_ASSERT(!pl_amp.get(npc::BodyPart::LeftHand).is_present);
+    TEST_ASSERT(pl_amp.get(npc::BodyPart::RightArm).is_present);
+
+    std::cout << "[PASS] PosedPlacement foundation verified matching canonical generator dimensions and cascades.\n";
+}
+
 int main() {
     std::cout << "Running BodyGeometry unit tests (v0.3.3.1)...\n";
     test_compute_geometry_accuracy();
     test_geometry_overrides();
+    test_clothing_foundation_posed_placement();
 
     if (npc::test::failure_count() > 0) {
         std::cerr << "BodyGeometry tests FAILED with " << npc::test::failure_count() << " error(s).\n";

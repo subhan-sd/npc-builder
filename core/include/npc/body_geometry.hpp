@@ -1,12 +1,15 @@
 #pragma once
+#include "types.hpp"
+#include "conditions.hpp"
 #include <cstdint>
 #include <cmath>
 #include <algorithm>
 
 namespace npc {
 
-// Forward declaration
+// Forward declarations
 struct AnatomyProfile;
+struct AnimationCommand;
 
 // Canonical bounds for all geometry dimensions
 struct GeometryBounds {
@@ -134,6 +137,234 @@ inline BodyGeometry compute_full_geometry(
 // Compute base body geometry from anatomy mass and muscularity (legacy helper)
 inline BodyGeometry compute_geometry(float mass, float musc) {
     return compute_full_geometry(0.5f, mass, musc, 0.5f);
+}
+
+// -------------------------------------------------------------
+// Clothing & Equipment Foundation Types (v0.3.3.1)
+// -------------------------------------------------------------
+
+// Rectangle in pixel space
+struct PixelRect {
+    int x{0};
+    int y{0};
+    int width{0};
+    int height{0};
+
+    bool operator==(const PixelRect& other) const = default;
+};
+
+// 2D anchor point
+struct AnchorPoint {
+    int x{0};
+    int y{0};
+
+    bool operator==(const AnchorPoint& other) const = default;
+};
+
+// Explicit rendering layer order (z-index) for modular layering
+enum class LayerOrder : uint8_t {
+    Background = 0,
+    Undergarment,
+    BaseBody,
+    InnerClothing, // Shirt, pants
+    OuterClothing, // Coat, vest
+    Armor,
+    Accessories,
+    PhysicalConditions, // Bandages, blood, scars
+    Count
+};
+
+// Placement of a single body part in a posed frame
+struct BodyPartPlacement {
+    PixelRect bounds;
+    AnchorPoint origin;
+    AnchorPoint attach_point;
+    bool is_present{true}; // False if amputated (including cascade)
+    LayerOrder base_layer{LayerOrder::BaseBody};
+
+    bool operator==(const BodyPartPlacement& other) const = default;
+};
+
+// Complete posed placement for all 10 canonical body parts for one animation frame
+struct PosedPlacement {
+    // Array indexed by BodyPart enum (0..9)
+    BodyPartPlacement parts[10];
+
+    const BodyPartPlacement& get(BodyPart part) const {
+        return parts[static_cast<size_t>(part)];
+    }
+
+    BodyPartPlacement& get(BodyPart part) {
+        return parts[static_cast<size_t>(part)];
+    }
+};
+
+// Compute posed placement matching exactly the coordinates used by generator.cpp render().
+// Pure foundation helper, does not alter render() execution path.
+inline PosedPlacement compute_posed_placement(
+    const BodyGeometry& geo,
+    float posture,
+    const PhysicalConditionSet& conditions,
+    const AnimationCommand& cmd
+) {
+    PosedPlacement placement;
+
+    int total_height = geo.total_height;
+    int head_w = 7;
+    int head_h = 8;
+    int leg_len = geo.leg_len;
+    int torso_h = geo.torso_h;
+    int arm_len = geo.arm_len;
+
+    float t = cmd.anim_time * cmd.speed;
+    int leg_l_dy = 0, leg_r_dy = 0;
+    int arm_l_dy = 0, arm_r_dy = 0;
+    int bob_y = 0;
+
+    switch (cmd.state) {
+        case AnimationState::Idle:
+            bob_y = static_cast<int>(std::sin(t * 3.0f) * 0.8f);
+            break;
+        case AnimationState::Walk: {
+            float cycle = std::sin(t * 8.0f);
+            leg_l_dy = static_cast<int>(cycle * 2.5f);
+            leg_r_dy = -leg_l_dy;
+            arm_l_dy = -leg_l_dy;
+            arm_r_dy = leg_l_dy;
+            bob_y = static_cast<int>(std::abs(cycle) * 1.0f);
+            break;
+        }
+        case AnimationState::Run: {
+            float cycle = std::sin(t * 14.0f);
+            leg_l_dy = static_cast<int>(cycle * 4.0f);
+            leg_r_dy = -leg_l_dy;
+            arm_l_dy = -leg_l_dy;
+            arm_r_dy = leg_l_dy;
+            bob_y = static_cast<int>(std::abs(cycle) * 2.0f);
+            break;
+        }
+        case AnimationState::Attack: {
+            float cycle = std::sin(t * 10.0f);
+            arm_r_dy = -static_cast<int>(std::abs(cycle) * 6.0f);
+            break;
+        }
+        case AnimationState::Fall: {
+            total_height = 14;
+            head_h = 6;
+            torso_h = 5;
+            leg_len = 3;
+            break;
+        }
+        case AnimationState::Swim: {
+            bob_y = static_cast<int>(std::sin(t * 5.0f) * 1.5f);
+            leg_l_dy = static_cast<int>(std::sin(t * 6.0f) * 2.0f);
+            leg_r_dy = -leg_l_dy;
+            arm_l_dy = static_cast<int>(std::cos(t * 6.0f) * 3.0f);
+            arm_r_dy = -arm_l_dy;
+            break;
+        }
+    }
+
+    int cx = 32 / 2;
+    int ground_y = 48 - 3;
+    int base_y = ground_y - total_height - bob_y;
+
+    float post = posture;
+    int dir_sign = (cmd.direction == Direction::East) ? 1 : ((cmd.direction == Direction::West) ? -1 : 0);
+    int head_lean_x = static_cast<int>(std::round(post * 3.0f)) * dir_sign;
+    int torso_lean_x = static_cast<int>(std::round(post * 1.5f)) * dir_sign;
+    int head_drop_y = (post > 0.2f) ? static_cast<int>(std::round(post * 1.5f)) : 0;
+
+    int head_x = cx - head_w / 2 + head_lean_x;
+    int head_y = base_y + head_drop_y;
+    int neck_y = head_y + head_h - 1;
+    int torso_y = neck_y + 1;
+    int hips_y = torso_y + torso_h;
+
+    int shoulder_w = geo.shoulder_w;
+    int arm_base_thick = geo.arm_base_thick;
+    int arm_y = torso_y + 1;
+    int arm_l_x = cx - shoulder_w / 2 - arm_base_thick + torso_lean_x;
+    int arm_r_x = cx + shoulder_w / 2 + torso_lean_x;
+
+    int leg_gap = geo.leg_gap;
+    int thigh_thick = geo.thigh_thick;
+    int leg_l_center = cx - 2 - leg_gap;
+    int leg_r_center = cx + 2 + leg_gap;
+
+    // BodyPart::Head
+    auto& p_head = placement.get(BodyPart::Head);
+    p_head.bounds = {head_x, head_y, head_w, head_h};
+    p_head.origin = {head_x, head_y};
+    p_head.attach_point = {head_x + head_w / 2, neck_y};
+    p_head.is_present = !conditions.is_amputated(BodyPart::Head);
+
+    // BodyPart::Torso
+    auto& p_torso = placement.get(BodyPart::Torso);
+    p_torso.bounds = {cx - shoulder_w / 2, torso_y, shoulder_w, torso_h};
+    p_torso.origin = {cx - shoulder_w / 2, torso_y};
+    p_torso.attach_point = {cx, hips_y};
+    p_torso.is_present = !conditions.is_amputated(BodyPart::Torso);
+
+    // BodyPart::LeftArm
+    auto& p_larm = placement.get(BodyPart::LeftArm);
+    p_larm.bounds = {arm_l_x, arm_y + arm_l_dy, arm_base_thick, arm_len - 2};
+    p_larm.origin = {arm_l_x, arm_y + arm_l_dy};
+    p_larm.attach_point = {arm_l_x + arm_base_thick / 2, arm_y + arm_l_dy + arm_len - 2};
+    p_larm.is_present = !conditions.is_amputated(BodyPart::LeftArm);
+
+    // BodyPart::RightArm
+    auto& p_rarm = placement.get(BodyPart::RightArm);
+    p_rarm.bounds = {arm_r_x, arm_y + arm_r_dy, arm_base_thick, arm_len - 2};
+    p_rarm.origin = {arm_r_x, arm_y + arm_r_dy};
+    p_rarm.attach_point = {arm_r_x + arm_base_thick / 2, arm_y + arm_r_dy + arm_len - 2};
+    p_rarm.is_present = !conditions.is_amputated(BodyPart::RightArm);
+
+    // BodyPart::LeftHand
+    auto& p_lhand = placement.get(BodyPart::LeftHand);
+    p_lhand.bounds = {arm_l_x, arm_y + arm_l_dy + arm_len - 2, arm_base_thick + 1, 2};
+    p_lhand.origin = {arm_l_x, arm_y + arm_l_dy + arm_len - 2};
+    p_lhand.attach_point = {arm_l_x, arm_y + arm_l_dy + arm_len - 2};
+    p_lhand.is_present = !conditions.is_amputated(BodyPart::LeftHand) && !conditions.is_amputated(BodyPart::LeftArm);
+
+    // BodyPart::RightHand
+    auto& p_rhand = placement.get(BodyPart::RightHand);
+    p_rhand.bounds = {arm_r_x, arm_y + arm_r_dy + arm_len - 2, arm_base_thick + 1, 2};
+    p_rhand.origin = {arm_r_x, arm_y + arm_r_dy + arm_len - 2};
+    p_rhand.attach_point = {arm_r_x, arm_y + arm_r_dy + arm_len - 2};
+    p_rhand.is_present = !conditions.is_amputated(BodyPart::RightHand) && !conditions.is_amputated(BodyPart::RightArm);
+
+    // BodyPart::LeftLeg
+    auto& p_lleg = placement.get(BodyPart::LeftLeg);
+    p_lleg.bounds = {leg_l_center - thigh_thick / 2, hips_y + leg_l_dy, thigh_thick, leg_len - 1};
+    p_lleg.origin = {leg_l_center - thigh_thick / 2, hips_y + leg_l_dy};
+    p_lleg.attach_point = {leg_l_center, hips_y + leg_len + leg_l_dy - 1};
+    p_lleg.is_present = !conditions.is_amputated(BodyPart::LeftLeg);
+
+    // BodyPart::RightLeg
+    auto& p_rleg = placement.get(BodyPart::RightLeg);
+    p_rleg.bounds = {leg_r_center - thigh_thick / 2, hips_y + leg_r_dy, thigh_thick, leg_len - 1};
+    p_rleg.origin = {leg_r_center - thigh_thick / 2, hips_y + leg_r_dy};
+    p_rleg.attach_point = {leg_r_center, hips_y + leg_len + leg_r_dy - 1};
+    p_rleg.is_present = !conditions.is_amputated(BodyPart::RightLeg);
+
+    // BodyPart::LeftFoot
+    auto& p_lfoot = placement.get(BodyPart::LeftFoot);
+    int lfoot_x = leg_l_center - thigh_thick / 2 - (cmd.direction == Direction::West ? 2 : 1);
+    p_lfoot.bounds = {lfoot_x, hips_y + leg_len + leg_l_dy - 1, thigh_thick + 2, 1};
+    p_lfoot.origin = {lfoot_x, hips_y + leg_len + leg_l_dy - 1};
+    p_lfoot.attach_point = {leg_l_center, hips_y + leg_len + leg_l_dy - 1};
+    p_lfoot.is_present = !conditions.is_amputated(BodyPart::LeftFoot) && !conditions.is_amputated(BodyPart::LeftLeg);
+
+    // BodyPart::RightFoot
+    auto& p_rfoot = placement.get(BodyPart::RightFoot);
+    int rfoot_x = leg_r_center - thigh_thick / 2;
+    p_rfoot.bounds = {rfoot_x, hips_y + leg_len + leg_r_dy - 1, thigh_thick + 2, 1};
+    p_rfoot.origin = {rfoot_x, hips_y + leg_len + leg_r_dy - 1};
+    p_rfoot.attach_point = {leg_r_center, hips_y + leg_len + leg_r_dy - 1};
+    p_rfoot.is_present = !conditions.is_amputated(BodyPart::RightFoot) && !conditions.is_amputated(BodyPart::RightLeg);
+
+    return placement;
 }
 
 } // namespace npc
