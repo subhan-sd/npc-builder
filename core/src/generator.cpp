@@ -99,13 +99,15 @@ static ColorRamp make_ramp(ColorRGBA base, ColorRGBA outline_tint = {73, 53, 47,
     return r;
 }
 
-PixelBuffer CharacterGenerator::render_internal(
+namespace detail {
+
+PixelBuffer render_internal(
     const HumanAppearance& app,
     const PhysicalConditionSet& cond,
     const AnimationCommand& cmd,
     const BodyGeometry* override_geo
 ) {
-    PixelBuffer buf(CANVAS_WIDTH, CANVAS_HEIGHT, {0, 0, 0, 0});
+    PixelBuffer buf(CharacterGenerator::CANVAS_WIDTH, CharacterGenerator::CANVAS_HEIGHT, {0, 0, 0, 0});
 
     float h = app.body.height;
     float mass = app.body.body_mass;
@@ -175,8 +177,8 @@ PixelBuffer CharacterGenerator::render_internal(
         }
     }
 
-    int cx = CANVAS_WIDTH / 2;
-    int ground_y = CANVAS_HEIGHT - 3;
+    int cx = CharacterGenerator::CANVAS_WIDTH / 2;
+    int ground_y = CharacterGenerator::CANVAS_HEIGHT - 3;
     int base_y = ground_y - total_height - bob_y;
 
     // Posture multi-part derivation (forward tilt in side view, trapezius compression in front view)
@@ -537,4 +539,5 @@ PixelBuffer CharacterGenerator::render_internal(
     return buf;
 }
 
+} // namespace detail
 } // namespace npc

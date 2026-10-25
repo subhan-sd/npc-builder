@@ -8,6 +8,16 @@
 
 namespace npc {
 
+namespace detail {
+    // Internal rendering implementation hook (accessible for generator and testing detail)
+    PixelBuffer render_internal(
+        const HumanAppearance& appearance,
+        const PhysicalConditionSet& conditions,
+        const AnimationCommand& cmd,
+        const BodyGeometry* override_geo
+    );
+}
+
 class CharacterGenerator {
 public:
     static constexpr int CANVAS_WIDTH = 32;
@@ -29,7 +39,7 @@ public:
     ) {
         auto app = profile.to_legacy_appearance();
         auto geo = profile.derived_geometry();
-        return render_internal(app, profile.physical.conditions, cmd, &geo);
+        return detail::render_internal(app, profile.physical.conditions, cmd, &geo);
     }
 
     // Render character to pixel buffer based on appearance, conditions, and animation command (legacy public API)
@@ -38,16 +48,8 @@ public:
         const PhysicalConditionSet& conditions,
         const AnimationCommand& cmd
     ) {
-        return render_internal(appearance, conditions, cmd, nullptr);
+        return detail::render_internal(appearance, conditions, cmd, nullptr);
     }
-
-    // Internal test hook: render with explicit BodyGeometry
-    static PixelBuffer render_internal(
-        const HumanAppearance& appearance,
-        const PhysicalConditionSet& conditions,
-        const AnimationCommand& cmd,
-        const BodyGeometry* override_geo
-    );
 };
 
 } // namespace npc
