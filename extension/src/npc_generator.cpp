@@ -92,6 +92,17 @@ static Dictionary profile_to_dict(const npc::CharacterProfile& p) {
     physical["injuries"] = injs;
     dict["physical"] = physical;
 
+    // Body Geometry (v0.3.3)
+    Dictionary geo;
+    geo["shoulder_w"] = p.body_geometry.shoulder_w;
+    geo["waist_w"] = p.body_geometry.waist_w;
+    geo["hips_w"] = p.body_geometry.hips_w;
+    geo["thigh_thick"] = p.body_geometry.thigh_thick;
+    geo["neck_w"] = p.body_geometry.neck_w;
+    geo["arm_base_thick"] = p.body_geometry.arm_base_thick;
+    geo["leg_gap"] = p.body_geometry.leg_gap;
+    dict["body_geometry"] = geo;
+
     return dict;
 }
 
@@ -178,6 +189,19 @@ static npc::CharacterProfile dict_to_profile(const Dictionary& dict) {
                 p.physical.conditions.injuries.push_back(inj);
             }
         }
+    }
+
+    if (dict.has("body_geometry")) {
+        Dictionary geo = dict["body_geometry"];
+        p.body_geometry.shoulder_w = geo.get("shoulder_w", p.body_geometry.shoulder_w);
+        p.body_geometry.waist_w = geo.get("waist_w", p.body_geometry.waist_w);
+        p.body_geometry.hips_w = geo.get("hips_w", p.body_geometry.hips_w);
+        p.body_geometry.thigh_thick = geo.get("thigh_thick", p.body_geometry.thigh_thick);
+        p.body_geometry.neck_w = geo.get("neck_w", p.body_geometry.neck_w);
+        p.body_geometry.arm_base_thick = geo.get("arm_base_thick", p.body_geometry.arm_base_thick);
+        p.body_geometry.leg_gap = geo.get("leg_gap", p.body_geometry.leg_gap);
+    } else {
+        p.body_geometry = npc::compute_geometry(p.anatomy.body_mass, p.anatomy.muscularity);
     }
 
     return p;

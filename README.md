@@ -82,7 +82,8 @@ Setiap warna kulit diturunkan menjadi 5 tingkatan kontras:
 - [x] **v0.2.3**: GDExtension native architecture migration, C++ core single source of truth, C-API v2 with round-trip serializer, Release-proof CTest suite & 7,360 golden fixture matrix.
 - [x] **v0.3.1**: Character Profile System, domain separation (anatomy, appearance, conditions), ProfileValidator, Serializer V3, C-API v3, GDExtension profile bridge.
 - [x] **v0.3.2**: Character Profile validation hardening (facial enums, amputation consistency, injury integrity), pre-render validation in C-API & GDExtension, recursive CI submodule reliability & headless Godot smoke test.
-- [ ] **v0.3.3+**:
+- [x] **v0.3.3**: Body Geometry Refactor (`BodyGeometry`, `compute_geometry()`), skip injuries on amputated parts, distinct hand/foot injury boxes, multi-layer version bump (API v4, Schema v2, Format v4), 7,884 extended golden fixtures, and transition/monotonicity test matrix.
+- [ ] **v0.3.4+**:
   - Profil Anatomi Wanita (*Female body proportions, pelvic/chest variation*).
   - Sistem Layering Pakaian Dinamis (*Modular clothing, armor, and equipment*).
   - Variasi Wajah Lanjutan & Gaya Rambut Modular.
@@ -101,16 +102,25 @@ Setiap warna kulit diturunkan menjadi 5 tingkatan kontras:
 
 ### 1. Build C++ Core, Tests, & GDExtension
 ```bash
-# Konfigurasi dan compile (Release)
+# Linux / macOS (Release)
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
+cmake --build build --target npc_builder_extension --config Release
+
+# Windows (Command Prompt / PowerShell via Visual Studio 2022)
+cmake -B build
+cmake --build build --config Release
+cmake --build build --target npc_builder_extension --config Release
 
 # Jalankan seluruh rangkaian test otomatis CTest
-ctest --test-dir build --output-on-failure
+ctest --test-dir build -C Release --output-on-failure
 
 # Jalankan benchmark render mikro
-./build/benchmark_render
+./build/benchmark_render  # Linux/macOS
+# build\Release\benchmark_render.exe  # Windows
 ```
+
+> **Catatan Windows Godot:** Godot untuk Windows memerlukan biner `godot/bin/npc_builder_extension.dll`. Jika menjalankan preview pada host Windows (misalnya repositori diakses melalui WSL2 atau checkout native), pastikan target `npc_builder_extension` telah dikompilasi menggunakan compiler Windows (MSVC) agar DLL tersedia di `godot/bin/`. Biner Linux `.so` tidak dapat dimuat oleh Godot Windows executable.
 
 ### 2. Menjalankan Godot Preview Studio (GDExtension)
 1. Pastikan ekstensi `godot/bin/libnpc_builder_extension.so` (Linux) atau `.dll` (Windows) telah terkompilasi melalui CMake.

@@ -3,6 +3,7 @@
 #include "types.hpp"
 #include "appearance.hpp"
 #include "conditions.hpp"
+#include "body_geometry.hpp"
 #include <string>
 #include <vector>
 #include <cmath>
@@ -11,7 +12,7 @@
 namespace npc {
 
 // Schema version for CharacterProfile
-inline constexpr uint32_t PROFILE_SCHEMA_VERSION = 1;
+inline constexpr uint32_t PROFILE_SCHEMA_VERSION = 2;
 
 // Anatomy configuration domain
 struct AnatomyProfile {
@@ -144,6 +145,7 @@ struct CharacterProfile {
     AnatomyProfile anatomy;
     AppearanceProfile appearance;
     PhysicalConditionProfile physical;
+    BodyGeometry body_geometry{compute_geometry(0.5f, 0.5f)};
 
     bool operator==(const CharacterProfile& other) const = default;
 
@@ -156,6 +158,7 @@ struct CharacterProfile {
         p.anatomy = AnatomyProfile{};
         p.appearance = AppearanceProfile{};
         p.physical = PhysicalConditionProfile{};
+        p.body_geometry = compute_geometry(p.anatomy.body_mass, p.anatomy.muscularity);
         return p;
     }
 
@@ -169,6 +172,7 @@ struct CharacterProfile {
         p.anatomy = AnatomyProfile::from_legacy(app.body);
         p.appearance = AppearanceProfile::from_legacy(app.face);
         p.physical.conditions = cond;
+        p.body_geometry = compute_geometry(p.anatomy.body_mass, p.anatomy.muscularity);
         return p;
     }
 
@@ -304,6 +308,36 @@ public:
             }
         }
 
+        // Validate BodyGeometry bounds
+        if (profile.body_geometry.shoulder_w < 9 || profile.body_geometry.shoulder_w > 18) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("body_geometry.shoulder_w out of bounds [9, 18]");
+        }
+        if (profile.body_geometry.waist_w < 6 || profile.body_geometry.waist_w > 16) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("body_geometry.waist_w out of bounds [6, 16]");
+        }
+        if (profile.body_geometry.hips_w < 6 || profile.body_geometry.hips_w > 16) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("body_geometry.hips_w out of bounds [6, 16]");
+        }
+        if (profile.body_geometry.thigh_thick < 2 || profile.body_geometry.thigh_thick > 4) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("body_geometry.thigh_thick out of bounds [2, 4]");
+        }
+        if (profile.body_geometry.neck_w < 2 || profile.body_geometry.neck_w > 3) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("body_geometry.neck_w out of bounds [2, 3]");
+        }
+        if (profile.body_geometry.arm_base_thick < 2 || profile.body_geometry.arm_base_thick > 3) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("body_geometry.arm_base_thick out of bounds [2, 3]");
+        }
+        if (profile.body_geometry.leg_gap < 0 || profile.body_geometry.leg_gap > 1) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("body_geometry.leg_gap out of bounds [0, 1]");
+        }
+
         return result;
     }
 
@@ -437,6 +471,9 @@ public:
             }
             ++it;
         }
+
+        // Recompute body geometry if anatomy was normalized
+        profile.body_geometry = compute_geometry(profile.anatomy.body_mass, profile.anatomy.muscularity);
 
         result.outcome = normalized ? ValidationOutcome::ValidNormalized : ValidationOutcome::Valid;
         return result;

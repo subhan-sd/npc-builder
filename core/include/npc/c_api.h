@@ -8,7 +8,7 @@
 #define NPC_C_EXPORT __attribute__((visibility("default")))
 #endif
 
-#define NPC_API_VERSION 3
+#define NPC_API_VERSION 4
 
 #ifdef __cplusplus
 extern "C" {
@@ -103,6 +103,15 @@ typedef struct CNpcProfile {
 
     // Physical condition domain
     uint8_t amputations_mask[10]; // BodyPart::Count
+
+    // Body geometry domain (v0.3.3 / API v4: 7 integer values)
+    int16_t geo_shoulder_w;
+    int16_t geo_waist_w;
+    int16_t geo_hips_w;
+    int16_t geo_thigh_thick;
+    int16_t geo_neck_w;
+    int16_t geo_arm_base_thick;
+    int16_t geo_leg_gap;
 } CNpcProfile;
 
 typedef struct CNpcRenderConfig {

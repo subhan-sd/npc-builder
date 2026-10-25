@@ -35,14 +35,15 @@ public:
         const AnimationCommand& cmd
     ) {
         auto app = profile.to_legacy_appearance();
-        return render(app, profile.physical.conditions, cmd);
+        return render(app, profile.physical.conditions, cmd, &profile.body_geometry);
     }
 
     // Render character to pixel buffer based on appearance, conditions, and animation command (legacy)
     static PixelBuffer render(
         const HumanAppearance& appearance,
         const PhysicalConditionSet& conditions,
-        const AnimationCommand& cmd
+        const AnimationCommand& cmd,
+        const BodyGeometry* override_geo = nullptr
     );
 };
 

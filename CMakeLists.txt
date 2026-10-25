@@ -1,15 +1,26 @@
 cmake_minimum_required(VERSION 3.20)
+
+# Set CMP0091 to NEW before project() for MSVC runtime library abstraction
+if(POLICY CMP0091)
+    cmake_policy(SET CMP0091 NEW)
+endif()
+
 project(npc_builder LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Compiler warnings and visibility
+# Standardize MSVC runtime library across all targets
 if(MSVC)
-    add_compile_options(/W4 /permissive-)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" CACHE STRING "MSVC runtime library" FORCE)
+endif()
+
+# Compiler warnings, visibility, and cross-platform fp consistency
+if(MSVC)
+    add_compile_options(/W4 /permissive- /fp:precise)
 else()
-    add_compile_options(-Wall -Wextra -Wpedantic)
+    add_compile_options(-Wall -Wextra -Wpedantic -ffp-contract=off)
 endif()
 
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
@@ -86,6 +97,22 @@ add_executable(test_profile
 target_link_libraries(test_profile PRIVATE npc_core npc_builder)
 target_include_directories(test_profile PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 add_test(NAME CharacterProfileTest COMMAND test_profile)
+
+# BodyGeometry Test (v0.3.3)
+add_executable(test_geometry
+    tests/test_geometry.cpp
+)
+target_link_libraries(test_geometry PRIVATE npc_core)
+target_include_directories(test_geometry PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+add_test(NAME BodyGeometryTest COMMAND test_geometry)
+
+# Transition & Monotonicity Test (v0.3.3)
+add_executable(test_transition
+    tests/test_transition.cpp
+)
+target_link_libraries(test_transition PRIVATE npc_core)
+target_include_directories(test_transition PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+add_test(NAME TransitionTest COMMAND test_transition)
 
 # Benchmark Utility
 add_executable(benchmark_render

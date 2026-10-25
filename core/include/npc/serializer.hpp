@@ -11,7 +11,8 @@ namespace npc {
 class Serializer {
 public:
     static constexpr uint32_t SERIALIZER_FORMAT_VERSION = 2;
-    static constexpr uint32_t PROFILE_FORMAT_VERSION = 3;
+    static constexpr uint32_t PROFILE_FORMAT_VERSION = 4;
+    static constexpr uint32_t LEGACY_PROFILE_FORMAT_VERSION = 3;
 
     // Serialize legacy HumanAppearance (Format V2)
     static std::string serialize(const HumanAppearance& app) {
@@ -208,6 +209,15 @@ public:
             ss << " " << (p.physical.conditions.amputations[i] ? 1 : 0);
         }
 
+        // BodyGeometry (Format V4: 7 integer values)
+        ss << " " << p.body_geometry.shoulder_w
+           << " " << p.body_geometry.waist_w
+           << " " << p.body_geometry.hips_w
+           << " " << p.body_geometry.thigh_thick
+           << " " << p.body_geometry.neck_w
+           << " " << p.body_geometry.arm_base_thick
+           << " " << p.body_geometry.leg_gap;
+
         // Injuries
         ss << " " << p.physical.conditions.injuries.size();
         for (const auto& inj : p.physical.conditions.injuries) {
@@ -298,6 +308,112 @@ public:
                 if (amp < 0 || amp > 1) return false;
                 out_p.physical.conditions.amputations[i] = (amp != 0);
             }
+
+            // BodyGeometry (Format V4: 7 integer values)
+            if (!(ss >> out_p.body_geometry.shoulder_w
+                     >> out_p.body_geometry.waist_w
+                     >> out_p.body_geometry.hips_w
+                     >> out_p.body_geometry.thigh_thick
+                     >> out_p.body_geometry.neck_w
+                     >> out_p.body_geometry.arm_base_thick
+                     >> out_p.body_geometry.leg_gap)) {
+                return false;
+            }
+
+            // Injuries
+            size_t injury_count = 0;
+            if (!(ss >> injury_count)) return false;
+            out_p.physical.conditions.injuries.clear();
+            out_p.physical.conditions.injuries.reserve(injury_count);
+
+            for (size_t i = 0; i < injury_count; ++i) {
+                InjuryCondition inj;
+                int part, type, act, hld;
+                if (!(ss >> inj.condition_id >> part >> type >> inj.severity >> inj.visual_seed >> act >> hld)) {
+                    return false;
+                }
+                if (act < 0 || act > 1 || hld < 0 || hld > 1) {
+                    return false;
+                }
+                inj.body_part = static_cast<BodyPart>(part);
+                inj.type = static_cast<ConditionType>(type);
+                inj.active = (act != 0);
+                inj.healed = (hld != 0);
+                out_p.physical.conditions.injuries.push_back(inj);
+            }
+
+            auto res = ProfileValidator::validate(out_p);
+            return res.is_ok();
+        } else if (format_version == LEGACY_PROFILE_FORMAT_VERSION) {
+            // Backward compatibility: import Format V3 into CharacterProfile (compute BodyGeometry)
+            uint32_t schema = 0;
+            if (!(ss >> schema)) return false;
+            if (schema != 1) return false;
+
+            out_p.schema_version = PROFILE_SCHEMA_VERSION;
+            if (!(ss >> out_p.generation.npc_id
+                     >> out_p.generation.seed
+                     >> out_p.generation.generator_version
+                     >> out_p.anatomy.height
+                     >> out_p.anatomy.body_mass
+                     >> out_p.anatomy.muscularity
+                     >> out_p.anatomy.posture
+                     >> out_p.anatomy.head_scale
+                     >> out_p.anatomy.torso_ratio
+                     >> out_p.anatomy.arm_ratio
+                     >> out_p.anatomy.leg_ratio)) {
+                return false;
+            }
+
+            int eye_shape, eye_spacing, nose, mouth, hair_style, expr;
+            int sr, sg, sb, sa;
+            int er, eg, eb, ea;
+            int hr, hg, hb, ha;
+            int tr, tg, tb, ta;
+            int pr, pg, pb, pa;
+
+            if (!(ss >> eye_shape >> eye_spacing >> nose >> mouth >> hair_style >> expr
+                     >> sr >> sg >> sb >> sa
+                     >> er >> eg >> eb >> ea
+                     >> hr >> hg >> hb >> ha
+                     >> tr >> tg >> tb >> ta
+                     >> pr >> pg >> pb >> pa)) {
+                return false;
+            }
+
+            auto valid_color = [](int r, int g, int b, int a) {
+                return r >= 0 && r <= 255 && g >= 0 && g <= 255 && b >= 0 && b <= 255 && a >= 0 && a <= 255;
+            };
+
+            if (!valid_color(sr, sg, sb, sa) || !valid_color(er, eg, eb, ea) ||
+                !valid_color(hr, hg, hb, ha) || !valid_color(tr, tg, tb, ta) ||
+                !valid_color(pr, pg, pb, pa)) {
+                return false;
+            }
+
+            out_p.appearance.eye_shape = static_cast<uint8_t>(eye_shape);
+            out_p.appearance.eye_spacing = static_cast<uint8_t>(eye_spacing);
+            out_p.appearance.nose_shape = static_cast<uint8_t>(nose);
+            out_p.appearance.mouth_shape = static_cast<uint8_t>(mouth);
+            out_p.appearance.hair_style = static_cast<uint8_t>(hair_style);
+            out_p.appearance.expression = static_cast<Expression>(expr);
+
+            out_p.appearance.skin_color = {static_cast<uint8_t>(sr), static_cast<uint8_t>(sg), static_cast<uint8_t>(sb), static_cast<uint8_t>(sa)};
+            out_p.appearance.eye_color = {static_cast<uint8_t>(er), static_cast<uint8_t>(eg), static_cast<uint8_t>(eb), static_cast<uint8_t>(ea)};
+            out_p.appearance.hair_color = {static_cast<uint8_t>(hr), static_cast<uint8_t>(hg), static_cast<uint8_t>(hb), static_cast<uint8_t>(ha)};
+            out_p.appearance.shirt_color = {static_cast<uint8_t>(tr), static_cast<uint8_t>(tg), static_cast<uint8_t>(tb), static_cast<uint8_t>(ta)};
+            out_p.appearance.pants_color = {static_cast<uint8_t>(pr), static_cast<uint8_t>(pg), static_cast<uint8_t>(pb), static_cast<uint8_t>(pa)};
+
+            // Amputations
+            for (size_t i = 0; i < static_cast<size_t>(BodyPart::Count); ++i) {
+                int amp = 0;
+                if (!(ss >> amp)) return false;
+                if (amp < 0 || amp > 1) return false;
+                out_p.physical.conditions.amputations[i] = (amp != 0);
+            }
+
+            // In Format V3, body geometry is auto-computed from anatomy
+            out_p.body_geometry = compute_geometry(out_p.anatomy.body_mass, out_p.anatomy.muscularity);
 
             // Injuries
             size_t injury_count = 0;

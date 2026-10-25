@@ -33,7 +33,19 @@ jobs:
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 
       - name: Build targets
-        run: cmake --build build --config ${{ matrix.build_type }}
+        run: |
+          cmake --build build --config ${{ matrix.build_type }}
+          cmake --build build --target npc_builder_extension --config ${{ matrix.build_type }}
+
+      - name: Verify Extension Artifact
+        if: matrix.os == 'ubuntu-latest' && matrix.build_type == 'Release'
+        run: |
+          echo "Verifying Linux GDExtension artifact in godot/bin/..."
+          ls -la godot/bin/
+          if [ ! -s godot/bin/libnpc_builder_extension.so ]; then
+            echo "ERROR: godot/bin/libnpc_builder_extension.so is missing or empty!"
+            exit 1
+          fi
 
       - name: Run CTest
         run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
@@ -46,6 +58,12 @@ jobs:
           sudo mv Godot_v4.4-stable_linux.x86_64 /usr/local/bin/godot
           chmod +x /usr/local/bin/godot
           godot --version
+
+      - name: Initialize Godot Extension Cache
+        if: matrix.os == 'ubuntu-latest' && matrix.build_type == 'Release'
+        run: |
+          mkdir -p godot/.godot
+          echo "res://bin/npc_builder.gdextension" > godot/.godot/extension_list.cfg
 
       - name: Run Godot Smoke Test with Fresh Extension
         if: matrix.os == 'ubuntu-latest' && matrix.build_type == 'Release'

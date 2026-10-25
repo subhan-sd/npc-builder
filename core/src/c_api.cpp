@@ -52,6 +52,14 @@ NPC_C_EXPORT int npc_profile_create_default(
         out_profile->amputations_mask[i] = p.physical.conditions.amputations[i] ? 1 : 0;
     }
 
+    out_profile->geo_shoulder_w = static_cast<int16_t>(p.body_geometry.shoulder_w);
+    out_profile->geo_waist_w = static_cast<int16_t>(p.body_geometry.waist_w);
+    out_profile->geo_hips_w = static_cast<int16_t>(p.body_geometry.hips_w);
+    out_profile->geo_thigh_thick = static_cast<int16_t>(p.body_geometry.thigh_thick);
+    out_profile->geo_neck_w = static_cast<int16_t>(p.body_geometry.neck_w);
+    out_profile->geo_arm_base_thick = static_cast<int16_t>(p.body_geometry.arm_base_thick);
+    out_profile->geo_leg_gap = static_cast<int16_t>(p.body_geometry.leg_gap);
+
     return NPC_SUCCESS;
 }
 
@@ -96,6 +104,14 @@ NPC_C_EXPORT int npc_profile_validate(
         }
         p.physical.conditions.amputations[i] = (profile->amputations_mask[i] != 0);
     }
+
+    p.body_geometry.shoulder_w = profile->geo_shoulder_w;
+    p.body_geometry.waist_w = profile->geo_waist_w;
+    p.body_geometry.hips_w = profile->geo_hips_w;
+    p.body_geometry.thigh_thick = profile->geo_thigh_thick;
+    p.body_geometry.neck_w = profile->geo_neck_w;
+    p.body_geometry.arm_base_thick = profile->geo_arm_base_thick;
+    p.body_geometry.leg_gap = profile->geo_leg_gap;
 
     auto res = npc::ProfileValidator::validate(p);
     return res.is_ok() ? NPC_SUCCESS : NPC_ERR_VALIDATION_FAIL;
@@ -156,6 +172,14 @@ NPC_C_EXPORT int npc_profile_render(
         }
         p.physical.conditions.amputations[i] = (c_profile->amputations_mask[i] != 0);
     }
+
+    p.body_geometry.shoulder_w = c_profile->geo_shoulder_w;
+    p.body_geometry.waist_w = c_profile->geo_waist_w;
+    p.body_geometry.hips_w = c_profile->geo_hips_w;
+    p.body_geometry.thigh_thick = c_profile->geo_thigh_thick;
+    p.body_geometry.neck_w = c_profile->geo_neck_w;
+    p.body_geometry.arm_base_thick = c_profile->geo_arm_base_thick;
+    p.body_geometry.leg_gap = c_profile->geo_leg_gap;
 
     if (injuries && injury_count > 0) {
         p.physical.conditions.injuries.reserve(injury_count);

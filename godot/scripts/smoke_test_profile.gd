@@ -17,11 +17,15 @@ func _init() -> void:
 
 	# Test create_default_profile
 	var default_prof = gen.create_default_profile(42, 12345)
-	if default_prof.is_empty() or not default_prof.has("anatomy") or not default_prof.has("appearance"):
-		push_error("FAIL: create_default_profile returned malformed dictionary")
+	if default_prof.is_empty() or not default_prof.has("anatomy") or not default_prof.has("appearance") or not default_prof.has("body_geometry"):
+		push_error("FAIL: create_default_profile returned malformed dictionary (missing body_geometry)")
 		quit(1)
 		return
-	print("create_default_profile OK: npc_id =", default_prof.generation.npc_id)
+	if default_prof["body_geometry"]["shoulder_w"] <= 0:
+		push_error("FAIL: body_geometry.shoulder_w invalid")
+		quit(1)
+		return
+	print("create_default_profile OK: npc_id =", default_prof.generation.npc_id, "shoulder_w =", default_prof.body_geometry.shoulder_w)
 
 	# Test validate_profile
 	var val_res = gen.validate_profile(default_prof)
@@ -60,7 +64,18 @@ func _init() -> void:
 		push_error("FAIL: render_profile returned null or wrong dimensions")
 		quit(1)
 		return
-	print("render_profile OK: dimensions =", img.get_width(), "x", img.get_height())
+
+	# Verify that the rendered sprite is not a blank/transparent texture
+	var non_transparent_pixels = 0
+	for y in range(img.get_height()):
+		for x in range(img.get_width()):
+			if img.get_pixel(x, y).a > 0.0:
+				non_transparent_pixels += 1
+	if non_transparent_pixels == 0:
+		push_error("FAIL: render_profile returned a completely transparent/blank image!")
+		quit(1)
+		return
+	print("render_profile OK: dimensions =", img.get_width(), "x", img.get_height(), "visible_pixels =", non_transparent_pixels)
 
 	# Test render_profile rejects invalid profile
 	var rejected_img = gen.render_profile(invalid_prof, 0, 0, 0.0)
