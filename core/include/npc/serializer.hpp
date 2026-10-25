@@ -114,6 +114,14 @@ public:
                 return false;
             }
 
+            if (eye_shape < 0 || eye_shape > 2 ||
+                eye_spacing < 1 || eye_spacing > 2 ||
+                nose < 0 || nose > 1 ||
+                mouth < 0 || mouth > 1 ||
+                hair_style < 0 || hair_style > 3) {
+                return false;
+            }
+
             auto valid_color = [](int r, int g, int b, int a) {
                 return r >= 0 && r <= 255 && g >= 0 && g <= 255 && b >= 0 && b <= 255 && a >= 0 && a <= 255;
             };
@@ -287,6 +295,7 @@ public:
             for (size_t i = 0; i < static_cast<size_t>(BodyPart::Count); ++i) {
                 int amp = 0;
                 if (!(ss >> amp)) return false;
+                if (amp < 0 || amp > 1) return false;
                 out_p.physical.conditions.amputations[i] = (amp != 0);
             }
 
@@ -300,6 +309,9 @@ public:
                 InjuryCondition inj;
                 int part, type, act, hld;
                 if (!(ss >> inj.condition_id >> part >> type >> inj.severity >> inj.visual_seed >> act >> hld)) {
+                    return false;
+                }
+                if (act < 0 || act > 1 || hld < 0 || hld > 1) {
                     return false;
                 }
                 inj.body_part = static_cast<BodyPart>(part);

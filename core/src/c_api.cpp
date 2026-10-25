@@ -84,6 +84,19 @@ NPC_C_EXPORT int npc_profile_validate(
     p.appearance.hair_style = profile->hair_style;
     p.appearance.expression = static_cast<npc::Expression>(profile->expression);
 
+    p.appearance.skin_color = {profile->skin_color.r, profile->skin_color.g, profile->skin_color.b, profile->skin_color.a};
+    p.appearance.eye_color = {profile->eye_color.r, profile->eye_color.g, profile->eye_color.b, profile->eye_color.a};
+    p.appearance.hair_color = {profile->hair_color.r, profile->hair_color.g, profile->hair_color.b, profile->hair_color.a};
+    p.appearance.shirt_color = {profile->shirt_color.r, profile->shirt_color.g, profile->shirt_color.b, profile->shirt_color.a};
+    p.appearance.pants_color = {profile->pants_color.r, profile->pants_color.g, profile->pants_color.b, profile->pants_color.a};
+
+    for (size_t i = 0; i < 10; ++i) {
+        if (profile->amputations_mask[i] > 1) {
+            return NPC_ERR_VALIDATION_FAIL;
+        }
+        p.physical.conditions.amputations[i] = (profile->amputations_mask[i] != 0);
+    }
+
     auto res = npc::ProfileValidator::validate(p);
     return res.is_ok() ? NPC_SUCCESS : NPC_ERR_VALIDATION_FAIL;
 }
@@ -99,6 +112,7 @@ NPC_C_EXPORT int npc_profile_render(
     size_t buffer_size
 ) {
     if (!c_profile || !out_rgba_buffer) return NPC_ERR_INVALID_ARGUMENT;
+    if (injury_count > 0 && !injuries) return NPC_ERR_INVALID_ARGUMENT;
     if (c_profile->struct_size != sizeof(CNpcProfile)) return NPC_ERR_VERSION_MISMATCH;
     if (buffer_size < static_cast<size_t>(npc::CharacterGenerator::CANVAS_WIDTH * npc::CharacterGenerator::CANVAS_HEIGHT * 4)) {
         return NPC_ERR_BUFFER_TOO_SMALL;
@@ -137,27 +151,32 @@ NPC_C_EXPORT int npc_profile_render(
     p.appearance.pants_color = {c_profile->pants_color.r, c_profile->pants_color.g, c_profile->pants_color.b, c_profile->pants_color.a};
 
     for (size_t i = 0; i < 10; ++i) {
-        if (c_profile->amputations_mask[i] != 0) {
-            p.physical.conditions.set_amputated(static_cast<npc::BodyPart>(i), true);
+        if (c_profile->amputations_mask[i] > 1) {
+            return NPC_ERR_VALIDATION_FAIL;
         }
+        p.physical.conditions.amputations[i] = (c_profile->amputations_mask[i] != 0);
     }
 
     if (injuries && injury_count > 0) {
+        p.physical.conditions.injuries.reserve(injury_count);
         for (uint32_t i = 0; i < injury_count; ++i) {
             const auto& c_inj = injuries[i];
-            if (c_inj.body_part < static_cast<uint8_t>(npc::BodyPart::Count) &&
-                c_inj.type <= static_cast<uint8_t>(npc::ConditionType::BloodStain)) {
-                npc::InjuryCondition inj;
-                inj.condition_id = c_inj.condition_id;
-                inj.body_part = static_cast<npc::BodyPart>(c_inj.body_part);
-                inj.type = static_cast<npc::ConditionType>(c_inj.type);
-                inj.severity = std::clamp(c_inj.severity, 0.0f, 1.0f);
-                inj.visual_seed = c_inj.visual_seed;
-                inj.active = c_inj.active != 0;
-                inj.healed = c_inj.healed != 0;
-                p.physical.conditions.injuries.push_back(inj);
-            }
+            npc::InjuryCondition inj;
+            inj.condition_id = c_inj.condition_id;
+            inj.body_part = static_cast<npc::BodyPart>(c_inj.body_part);
+            inj.type = static_cast<npc::ConditionType>(c_inj.type);
+            inj.severity = c_inj.severity;
+            inj.visual_seed = c_inj.visual_seed;
+            inj.active = c_inj.active != 0;
+            inj.healed = c_inj.healed != 0;
+            p.physical.conditions.injuries.push_back(inj);
         }
+    }
+
+    // Validate profile before rendering (FR-03: reject invalid profile before calling renderer)
+    auto val_res = npc::ProfileValidator::validate(p);
+    if (!val_res.is_ok()) {
+        return NPC_ERR_VALIDATION_FAIL;
     }
 
     npc::AnimationCommand cmd;

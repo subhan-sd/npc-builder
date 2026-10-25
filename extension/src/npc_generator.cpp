@@ -5,6 +5,7 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/color.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
+#include <godot_cpp/variant/utility_functions.hpp>
 #include <algorithm>
 
 namespace godot {
@@ -154,7 +155,7 @@ static npc::CharacterProfile dict_to_profile(const Dictionary& dict) {
             for (int i = 0; i < amps.size(); ++i) {
                 int part_idx = amps[i];
                 if (part_idx >= 0 && part_idx < static_cast<int>(npc::BodyPart::Count)) {
-                    p.physical.conditions.set_amputated(static_cast<npc::BodyPart>(part_idx), true);
+                    p.physical.conditions.amputations[part_idx] = true;
                 }
             }
         }
@@ -166,18 +167,15 @@ static npc::CharacterProfile dict_to_profile(const Dictionary& dict) {
                 int inj_type = d_inj.get("type", 0);
                 float severity = d_inj.get("severity", 0.5f);
 
-                if (body_part >= 0 && body_part < static_cast<int>(npc::BodyPart::Count) &&
-                    inj_type >= 0 && inj_type <= static_cast<int>(npc::ConditionType::BloodStain)) {
-                    npc::InjuryCondition inj;
-                    inj.condition_id = static_cast<uint32_t>(d_inj.get("condition_id", i + 1));
-                    inj.body_part = static_cast<npc::BodyPart>(body_part);
-                    inj.type = static_cast<npc::ConditionType>(inj_type);
-                    inj.severity = std::clamp(severity, 0.0f, 1.0f);
-                    inj.visual_seed = static_cast<uint32_t>(d_inj.get("visual_seed", 0));
-                    inj.active = d_inj.get("active", true);
-                    inj.healed = d_inj.get("healed", false);
-                    p.physical.conditions.injuries.push_back(inj);
-                }
+                npc::InjuryCondition inj;
+                inj.condition_id = static_cast<uint32_t>(d_inj.get("condition_id", i + 1));
+                inj.body_part = static_cast<npc::BodyPart>(body_part);
+                inj.type = static_cast<npc::ConditionType>(inj_type);
+                inj.severity = severity;
+                inj.visual_seed = static_cast<uint32_t>(d_inj.get("visual_seed", 0));
+                inj.active = d_inj.get("active", true);
+                inj.healed = d_inj.get("healed", false);
+                p.physical.conditions.injuries.push_back(inj);
             }
         }
     }
@@ -237,6 +235,13 @@ Ref<Image> NPCGenerator::render_profile(
     float anim_time
 ) {
     auto p = dict_to_profile(profile);
+
+    // Validate profile before rendering (FR-03: reject invalid profile before calling renderer)
+    auto val_res = npc::ProfileValidator::validate(p);
+    if (!val_res.is_ok()) {
+        UtilityFunctions::push_error("NPCGenerator::render_profile: invalid profile rejected before rendering");
+        return Ref<Image>();
+    }
 
     npc::AnimationCommand cmd;
     cmd.state = static_cast<npc::AnimationState>(std::clamp(anim_state, 0, 5));

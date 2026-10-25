@@ -232,9 +232,55 @@ public:
         check_float(profile.anatomy.leg_ratio, "anatomy.leg_ratio");
 
         // Validate Appearance
+        if (profile.appearance.eye_shape > 2) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("appearance.eye_shape out of bounds [0, 2]: " + std::to_string(profile.appearance.eye_shape));
+        }
+        if (profile.appearance.eye_spacing < 1 || profile.appearance.eye_spacing > 2) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("appearance.eye_spacing out of bounds [1, 2]: " + std::to_string(profile.appearance.eye_spacing));
+        }
+        if (profile.appearance.nose_shape > 1) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("appearance.nose_shape out of bounds [0, 1]: " + std::to_string(profile.appearance.nose_shape));
+        }
+        if (profile.appearance.mouth_shape > 1) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("appearance.mouth_shape out of bounds [0, 1]: " + std::to_string(profile.appearance.mouth_shape));
+        }
+        if (profile.appearance.hair_style > 3) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("appearance.hair_style out of bounds [0, 3]: " + std::to_string(profile.appearance.hair_style));
+        }
         if (static_cast<uint8_t>(profile.appearance.expression) > static_cast<uint8_t>(Expression::Surprised)) {
             result.outcome = ValidationOutcome::Invalid;
             result.issues.push_back("appearance.expression invalid enum");
+        }
+
+        // Validate Physical Condition Consistency (Amputations)
+        if (profile.physical.conditions.is_amputated(BodyPart::Head)) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("physical.conditions Head cannot be amputated");
+        }
+        if (profile.physical.conditions.is_amputated(BodyPart::Torso)) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("physical.conditions Torso cannot be amputated");
+        }
+        if (profile.physical.conditions.is_amputated(BodyPart::LeftArm) && !profile.physical.conditions.is_amputated(BodyPart::LeftHand)) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("physical.conditions LeftHand must be amputated if LeftArm is amputated");
+        }
+        if (profile.physical.conditions.is_amputated(BodyPart::RightArm) && !profile.physical.conditions.is_amputated(BodyPart::RightHand)) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("physical.conditions RightHand must be amputated if RightArm is amputated");
+        }
+        if (profile.physical.conditions.is_amputated(BodyPart::LeftLeg) && !profile.physical.conditions.is_amputated(BodyPart::LeftFoot)) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("physical.conditions LeftFoot must be amputated if LeftLeg is amputated");
+        }
+        if (profile.physical.conditions.is_amputated(BodyPart::RightLeg) && !profile.physical.conditions.is_amputated(BodyPart::RightFoot)) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("physical.conditions RightFoot must be amputated if RightLeg is amputated");
         }
 
         // Validate Injuries
@@ -243,7 +289,11 @@ public:
             if (static_cast<uint8_t>(inj.body_part) >= static_cast<uint8_t>(BodyPart::Count)) {
                 result.outcome = ValidationOutcome::Invalid;
                 result.issues.push_back("injury[" + std::to_string(i) + "].body_part out of bounds");
+            } else if (profile.physical.conditions.is_amputated(inj.body_part)) {
+                result.outcome = ValidationOutcome::Invalid;
+                result.issues.push_back("injury[" + std::to_string(i) + "] placed on amputated body part " + std::to_string(static_cast<int>(inj.body_part)));
             }
+
             if (static_cast<uint8_t>(inj.type) > static_cast<uint8_t>(ConditionType::BloodStain)) {
                 result.outcome = ValidationOutcome::Invalid;
                 result.issues.push_back("injury[" + std::to_string(i) + "].type out of bounds");
@@ -293,34 +343,99 @@ public:
             return result;
         }
 
+        if (profile.appearance.eye_shape > 2) {
+            profile.appearance.eye_shape = 2;
+            normalized = true;
+            result.issues.push_back("appearance.eye_shape clamped to 2");
+        }
+        if (profile.appearance.eye_spacing < 1 || profile.appearance.eye_spacing > 2) {
+            profile.appearance.eye_spacing = std::clamp<uint8_t>(profile.appearance.eye_spacing, 1, 2);
+            normalized = true;
+            result.issues.push_back("appearance.eye_spacing clamped to [1, 2]");
+        }
+        if (profile.appearance.nose_shape > 1) {
+            profile.appearance.nose_shape = 1;
+            normalized = true;
+            result.issues.push_back("appearance.nose_shape clamped to 1");
+        }
+        if (profile.appearance.mouth_shape > 1) {
+            profile.appearance.mouth_shape = 1;
+            normalized = true;
+            result.issues.push_back("appearance.mouth_shape clamped to 1");
+        }
+        if (profile.appearance.hair_style > 3) {
+            profile.appearance.hair_style = 3;
+            normalized = true;
+            result.issues.push_back("appearance.hair_style clamped to 3");
+        }
         if (static_cast<uint8_t>(profile.appearance.expression) > static_cast<uint8_t>(Expression::Surprised)) {
             profile.appearance.expression = Expression::Neutral;
             normalized = true;
             result.issues.push_back("appearance.expression normalized to Neutral");
         }
 
-        for (size_t i = 0; i < profile.physical.conditions.injuries.size(); ++i) {
-            auto& inj = profile.physical.conditions.injuries[i];
-            if (static_cast<uint8_t>(inj.body_part) >= static_cast<uint8_t>(BodyPart::Count)) {
+        // Amputations normalization
+        if (profile.physical.conditions.is_amputated(BodyPart::Head)) {
+            profile.physical.conditions.amputations[static_cast<size_t>(BodyPart::Head)] = false;
+            normalized = true;
+            result.issues.push_back("Head amputation reverted");
+        }
+        if (profile.physical.conditions.is_amputated(BodyPart::Torso)) {
+            profile.physical.conditions.amputations[static_cast<size_t>(BodyPart::Torso)] = false;
+            normalized = true;
+            result.issues.push_back("Torso amputation reverted");
+        }
+        if (profile.physical.conditions.is_amputated(BodyPart::LeftArm) && !profile.physical.conditions.is_amputated(BodyPart::LeftHand)) {
+            profile.physical.conditions.amputations[static_cast<size_t>(BodyPart::LeftHand)] = true;
+            normalized = true;
+            result.issues.push_back("LeftHand cascade-amputated with LeftArm");
+        }
+        if (profile.physical.conditions.is_amputated(BodyPart::RightArm) && !profile.physical.conditions.is_amputated(BodyPart::RightHand)) {
+            profile.physical.conditions.amputations[static_cast<size_t>(BodyPart::RightHand)] = true;
+            normalized = true;
+            result.issues.push_back("RightHand cascade-amputated with RightArm");
+        }
+        if (profile.physical.conditions.is_amputated(BodyPart::LeftLeg) && !profile.physical.conditions.is_amputated(BodyPart::LeftFoot)) {
+            profile.physical.conditions.amputations[static_cast<size_t>(BodyPart::LeftFoot)] = true;
+            normalized = true;
+            result.issues.push_back("LeftFoot cascade-amputated with LeftLeg");
+        }
+        if (profile.physical.conditions.is_amputated(BodyPart::RightLeg) && !profile.physical.conditions.is_amputated(BodyPart::RightFoot)) {
+            profile.physical.conditions.amputations[static_cast<size_t>(BodyPart::RightFoot)] = true;
+            normalized = true;
+            result.issues.push_back("RightFoot cascade-amputated with RightLeg");
+        }
+
+        // Injuries normalization
+        auto& injs = profile.physical.conditions.injuries;
+        for (auto it = injs.begin(); it != injs.end(); ) {
+            if (static_cast<uint8_t>(it->body_part) >= static_cast<uint8_t>(BodyPart::Count)) {
                 result.outcome = ValidationOutcome::Invalid;
-                result.issues.push_back("injury[" + std::to_string(i) + "].body_part out of bounds");
+                result.issues.push_back("injury body_part out of bounds");
                 return result;
             }
-            if (static_cast<uint8_t>(inj.type) > static_cast<uint8_t>(ConditionType::BloodStain)) {
-                result.outcome = ValidationOutcome::Invalid;
-                result.issues.push_back("injury[" + std::to_string(i) + "].type out of bounds");
-                return result;
-            }
-            if (std::isnan(inj.severity) || std::isinf(inj.severity)) {
-                result.outcome = ValidationOutcome::Invalid;
-                result.issues.push_back("injury[" + std::to_string(i) + "].severity NaN or Inf");
-                return result;
-            }
-            if (inj.severity < 0.0f || inj.severity > 1.0f) {
-                inj.severity = std::clamp(inj.severity, 0.0f, 1.0f);
+            if (profile.physical.conditions.is_amputated(it->body_part)) {
+                it = injs.erase(it);
                 normalized = true;
-                result.issues.push_back("injury[" + std::to_string(i) + "].severity clamped to [0.0, 1.0]");
+                result.issues.push_back("Removed injury on amputated body part");
+                continue;
             }
+            if (static_cast<uint8_t>(it->type) > static_cast<uint8_t>(ConditionType::BloodStain)) {
+                result.outcome = ValidationOutcome::Invalid;
+                result.issues.push_back("injury type out of bounds");
+                return result;
+            }
+            if (std::isnan(it->severity) || std::isinf(it->severity)) {
+                result.outcome = ValidationOutcome::Invalid;
+                result.issues.push_back("injury severity NaN or Inf");
+                return result;
+            }
+            if (it->severity < 0.0f || it->severity > 1.0f) {
+                it->severity = std::clamp(it->severity, 0.0f, 1.0f);
+                normalized = true;
+                result.issues.push_back("injury severity clamped to [0.0, 1.0]");
+            }
+            ++it;
         }
 
         result.outcome = normalized ? ValidationOutcome::ValidNormalized : ValidationOutcome::Valid;
