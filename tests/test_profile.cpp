@@ -237,8 +237,13 @@ void test_c_api_profile_functions() {
 
     // Old struct size rejected with NPC_ERR_VERSION_MISMATCH
     CNpcProfile old_sized_prof{};
-    old_sized_prof.struct_size = sizeof(CNpcProfile) - 14; // missing 7x int16_t
+    old_sized_prof.struct_size = NPC_PROFILE_MIN_SIZE_V4 - 14; // missing 7x int16_t
     TEST_ASSERT_EQ(npc_profile_validate(&old_sized_prof), NPC_ERR_VERSION_MISMATCH);
+
+    // Forward compatibility: future larger struct size must succeed without reading out of bounds
+    CNpcProfile larger_prof = c_prof;
+    larger_prof.struct_size = NPC_PROFILE_MIN_SIZE_V4 + 64;
+    TEST_ASSERT_EQ(npc_profile_validate(&larger_prof), NPC_SUCCESS);
 
     // Validate valid C profile
     TEST_ASSERT_EQ(npc_profile_validate(&c_prof), NPC_SUCCESS);
@@ -248,7 +253,11 @@ void test_c_api_profile_functions() {
     TEST_ASSERT_EQ(npc_profile_validate(&c_prof), NPC_ERR_VALIDATION_FAIL);
     c_prof.height = 0.5f;
 
-    // Render via C-API profile
+    // Corrupt geo_* fields with mismatching values on input
+    c_prof.geo_shoulder_w = 999;
+    c_prof.geo_waist_w = -50;
+
+    // Render via C-API profile: must succeed and ignore geo_* input (body_geometry is purely derived)
     std::vector<uint8_t> buffer(32 * 48 * 4, 0);
     err = npc_profile_render(&c_prof, nullptr, 0, 0, 0, 0.0f, buffer.data(), buffer.size());
     TEST_ASSERT_EQ(err, NPC_SUCCESS);
@@ -264,7 +273,7 @@ void test_c_api_profile_functions() {
         TEST_ASSERT_EQ(buffer[i * 4 + 3], direct_buf.pixels[i].a);
     }
 
-    std::cout << "[PASS] C API CharacterProfile functions pass with pixel-exact parity.\n";
+    std::cout << "[PASS] C API CharacterProfile functions pass with pixel-exact parity and ignored geo_* input.\n";
 }
 
 void test_c_api_pre_render_validation_and_errors() {

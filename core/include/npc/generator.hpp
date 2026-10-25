@@ -8,12 +8,15 @@
 
 namespace npc {
 
-struct AnimationCommand {
-    AnimationState state{AnimationState::Idle};
-    Direction direction{Direction::South};
-    float anim_time{0.0f}; // seconds for cycle evaluation
-    float speed{1.0f};
-};
+namespace detail {
+    // Internal rendering implementation hook (accessible for generator and testing detail)
+    PixelBuffer render_internal(
+        const HumanAppearance& appearance,
+        const PhysicalConditionSet& conditions,
+        const AnimationCommand& cmd,
+        const BodyGeometry* override_geo
+    );
+}
 
 class CharacterGenerator {
 public:
@@ -35,16 +38,18 @@ public:
         const AnimationCommand& cmd
     ) {
         auto app = profile.to_legacy_appearance();
-        return render(app, profile.physical.conditions, cmd, &profile.body_geometry);
+        auto geo = profile.derived_geometry();
+        return detail::render_internal(app, profile.physical.conditions, cmd, &geo);
     }
 
-    // Render character to pixel buffer based on appearance, conditions, and animation command (legacy)
+    // Render character to pixel buffer based on appearance, conditions, and animation command (legacy public API)
     static PixelBuffer render(
         const HumanAppearance& appearance,
         const PhysicalConditionSet& conditions,
-        const AnimationCommand& cmd,
-        const BodyGeometry* override_geo = nullptr
-    );
+        const AnimationCommand& cmd
+    ) {
+        return detail::render_internal(appearance, conditions, cmd, nullptr);
+    }
 };
 
 } // namespace npc

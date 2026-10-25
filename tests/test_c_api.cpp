@@ -84,11 +84,23 @@ void test_c_api_validation_errors() {
     TEST_ASSERT_EQ(npc_render_pixels_v2(&c_app, &cfg, buf.data(), buf.size()), NPC_ERR_INVALID_ENUM);
     cfg.anim_state = 0;
 
-    // Struct size mismatch
-    c_app.struct_size = sizeof(CNpcAppearance) - 4;
+    // Struct size check: strictly rejects smaller struct, accepts larger (future) struct
+    c_app.struct_size = NPC_APPEARANCE_MIN_SIZE_V2 - 4;
     TEST_ASSERT_EQ(npc_render_pixels_v2(&c_app, &cfg, buf.data(), buf.size()), NPC_ERR_VERSION_MISMATCH);
 
-    std::cout << "[PASS] C API error handling and input validation verified.\n";
+    cfg.struct_size = NPC_RENDER_CONFIG_MIN_SIZE_V2 - 2;
+    c_app.struct_size = NPC_APPEARANCE_MIN_SIZE_V2;
+    TEST_ASSERT_EQ(npc_render_pixels_v2(&c_app, &cfg, buf.data(), buf.size()), NPC_ERR_VERSION_MISMATCH);
+    cfg.struct_size = NPC_RENDER_CONFIG_MIN_SIZE_V2;
+
+    // Larger struct size (forward compatibility) must succeed without accessing beyond known fields
+    c_app.struct_size = NPC_APPEARANCE_MIN_SIZE_V2 + 64;
+    cfg.struct_size = NPC_RENDER_CONFIG_MIN_SIZE_V2 + 32;
+    TEST_ASSERT_EQ(npc_render_pixels_v2(&c_app, &cfg, buf.data(), buf.size()), NPC_SUCCESS);
+    c_app.struct_size = NPC_APPEARANCE_MIN_SIZE_V2;
+    cfg.struct_size = NPC_RENDER_CONFIG_MIN_SIZE_V2;
+
+    std::cout << "[PASS] C API error handling and forward-compatible struct_size validation verified.\n";
 }
 
 int main() {

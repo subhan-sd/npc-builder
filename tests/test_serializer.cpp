@@ -74,10 +74,179 @@ void test_serializer_corrupt_data_rejected() {
     std::cout << "[PASS] Corrupted and out-of-bounds serialized strings rejected safely.\n";
 }
 
+void test_serializer_override_roundtrip_experiment() {
+    std::cout << "Testing Task 1 review experiment: seed 7 with shoulder_w = 2 roundtrip...\n";
+    auto p1 = npc::CharacterGenerator::generate_profile_from_seed(7, 7);
+    p1.geometry_override.shoulder_w = 2;
+    p1.body_geometry = p1.derived_geometry();
+
+    npc::AnimationCommand cmd;
+    cmd.state = npc::AnimationState::Idle;
+    cmd.direction = npc::Direction::South;
+    cmd.anim_time = 0.0f;
+    cmd.speed = 1.0f;
+
+    auto px1 = npc::CharacterGenerator::render_profile(p1, cmd);
+
+    std::string serialized = npc::Serializer::serialize_profile(p1);
+    npc::CharacterProfile p2;
+    bool ok = npc::Serializer::deserialize_profile(serialized, p2);
+    TEST_ASSERT(ok);
+
+    TEST_ASSERT_EQ(p2.geometry_override.shoulder_w, 2);
+    TEST_ASSERT(p1.geometry_override == p2.geometry_override);
+    TEST_ASSERT(p1.derived_geometry() == p2.derived_geometry());
+
+    auto px2 = npc::CharacterGenerator::render_profile(p2, cmd);
+    TEST_ASSERT(px1.pixels.size() == px2.pixels.size());
+    for (size_t i = 0; i < px1.pixels.size(); ++i) {
+        TEST_ASSERT_EQ(px1.pixels[i].r, px2.pixels[i].r);
+        TEST_ASSERT_EQ(px1.pixels[i].g, px2.pixels[i].g);
+        TEST_ASSERT_EQ(px1.pixels[i].b, px2.pixels[i].b);
+        TEST_ASSERT_EQ(px1.pixels[i].a, px2.pixels[i].a);
+    }
+    std::cout << "[PASS] Seed 7 with shoulder_w override perfectly preserved in format 5.\n";
+}
+
+void test_serializer_profile_migration_v3_and_v4() {
+    std::cout << "Testing serializer migration from Format 3 and Format 4 (override = 0)...\n";
+    auto p_canonical = npc::CharacterGenerator::generate_profile_from_seed(42, 42);
+
+    // Create synthetic Format 4 string (format version 4, schema 2)
+    std::ostringstream ss4;
+    ss4 << "4 " << p_canonical.schema_version << " "
+        << p_canonical.generation.npc_id << " "
+        << p_canonical.generation.seed << " "
+        << p_canonical.generation.generator_version << " "
+        << std::setprecision(9)
+        << p_canonical.anatomy.height << " "
+        << p_canonical.anatomy.body_mass << " "
+        << p_canonical.anatomy.muscularity << " "
+        << p_canonical.anatomy.posture << " "
+        << p_canonical.anatomy.head_scale << " "
+        << p_canonical.anatomy.torso_ratio << " "
+        << p_canonical.anatomy.arm_ratio << " "
+        << p_canonical.anatomy.leg_ratio << " "
+        << static_cast<int>(p_canonical.appearance.eye_shape) << " "
+        << static_cast<int>(p_canonical.appearance.eye_spacing) << " "
+        << static_cast<int>(p_canonical.appearance.nose_shape) << " "
+        << static_cast<int>(p_canonical.appearance.mouth_shape) << " "
+        << static_cast<int>(p_canonical.appearance.hair_style) << " "
+        << static_cast<int>(p_canonical.appearance.expression) << " "
+        << static_cast<int>(p_canonical.appearance.skin_color.r) << " "
+        << static_cast<int>(p_canonical.appearance.skin_color.g) << " "
+        << static_cast<int>(p_canonical.appearance.skin_color.b) << " "
+        << static_cast<int>(p_canonical.appearance.skin_color.a) << " "
+        << static_cast<int>(p_canonical.appearance.eye_color.r) << " "
+        << static_cast<int>(p_canonical.appearance.eye_color.g) << " "
+        << static_cast<int>(p_canonical.appearance.eye_color.b) << " "
+        << static_cast<int>(p_canonical.appearance.eye_color.a) << " "
+        << static_cast<int>(p_canonical.appearance.hair_color.r) << " "
+        << static_cast<int>(p_canonical.appearance.hair_color.g) << " "
+        << static_cast<int>(p_canonical.appearance.hair_color.b) << " "
+        << static_cast<int>(p_canonical.appearance.hair_color.a) << " "
+        << static_cast<int>(p_canonical.appearance.shirt_color.r) << " "
+        << static_cast<int>(p_canonical.appearance.shirt_color.g) << " "
+        << static_cast<int>(p_canonical.appearance.shirt_color.b) << " "
+        << static_cast<int>(p_canonical.appearance.shirt_color.a) << " "
+        << static_cast<int>(p_canonical.appearance.pants_color.r) << " "
+        << static_cast<int>(p_canonical.appearance.pants_color.g) << " "
+        << static_cast<int>(p_canonical.appearance.pants_color.b) << " "
+        << static_cast<int>(p_canonical.appearance.pants_color.a);
+
+    for (size_t i = 0; i < static_cast<size_t>(npc::BodyPart::Count); ++i) {
+        ss4 << " 0";
+    }
+    // 7 dummy geometry values
+    ss4 << " 11 8 8 3 2 2 0";
+    // 0 injuries
+    ss4 << " 0";
+
+    npc::CharacterProfile p4;
+    bool ok4 = npc::Serializer::deserialize_profile(ss4.str(), p4);
+    TEST_ASSERT(ok4);
+    TEST_ASSERT(p4.geometry_override == npc::GeometryOverride{});
+    TEST_ASSERT(p4.derived_geometry() == p_canonical.derived_geometry());
+
+    // Create synthetic Format 3 string (format version 3, schema 1)
+    std::ostringstream ss3;
+    ss3 << "3 1 "
+        << p_canonical.generation.npc_id << " "
+        << p_canonical.generation.seed << " "
+        << p_canonical.generation.generator_version << " "
+        << std::setprecision(9)
+        << p_canonical.anatomy.height << " "
+        << p_canonical.anatomy.body_mass << " "
+        << p_canonical.anatomy.muscularity << " "
+        << p_canonical.anatomy.posture << " "
+        << p_canonical.anatomy.head_scale << " "
+        << p_canonical.anatomy.torso_ratio << " "
+        << p_canonical.anatomy.arm_ratio << " "
+        << p_canonical.anatomy.leg_ratio << " "
+        << static_cast<int>(p_canonical.appearance.eye_shape) << " "
+        << static_cast<int>(p_canonical.appearance.eye_spacing) << " "
+        << static_cast<int>(p_canonical.appearance.nose_shape) << " "
+        << static_cast<int>(p_canonical.appearance.mouth_shape) << " "
+        << static_cast<int>(p_canonical.appearance.hair_style) << " "
+        << static_cast<int>(p_canonical.appearance.expression) << " "
+        << static_cast<int>(p_canonical.appearance.skin_color.r) << " "
+        << static_cast<int>(p_canonical.appearance.skin_color.g) << " "
+        << static_cast<int>(p_canonical.appearance.skin_color.b) << " "
+        << static_cast<int>(p_canonical.appearance.skin_color.a) << " "
+        << static_cast<int>(p_canonical.appearance.eye_color.r) << " "
+        << static_cast<int>(p_canonical.appearance.eye_color.g) << " "
+        << static_cast<int>(p_canonical.appearance.eye_color.b) << " "
+        << static_cast<int>(p_canonical.appearance.eye_color.a) << " "
+        << static_cast<int>(p_canonical.appearance.hair_color.r) << " "
+        << static_cast<int>(p_canonical.appearance.hair_color.g) << " "
+        << static_cast<int>(p_canonical.appearance.hair_color.b) << " "
+        << static_cast<int>(p_canonical.appearance.hair_color.a) << " "
+        << static_cast<int>(p_canonical.appearance.shirt_color.r) << " "
+        << static_cast<int>(p_canonical.appearance.shirt_color.g) << " "
+        << static_cast<int>(p_canonical.appearance.shirt_color.b) << " "
+        << static_cast<int>(p_canonical.appearance.shirt_color.a) << " "
+        << static_cast<int>(p_canonical.appearance.pants_color.r) << " "
+        << static_cast<int>(p_canonical.appearance.pants_color.g) << " "
+        << static_cast<int>(p_canonical.appearance.pants_color.b) << " "
+        << static_cast<int>(p_canonical.appearance.pants_color.a);
+
+    for (size_t i = 0; i < static_cast<size_t>(npc::BodyPart::Count); ++i) {
+        ss3 << " 0";
+    }
+    // 0 injuries (Format 3 has no geometry values)
+    ss3 << " 0";
+
+    npc::CharacterProfile p3;
+    bool ok3 = npc::Serializer::deserialize_profile(ss3.str(), p3);
+    TEST_ASSERT(ok3);
+    TEST_ASSERT(p3.geometry_override == npc::GeometryOverride{});
+    TEST_ASSERT(p3.derived_geometry() == p_canonical.derived_geometry());
+
+    std::cout << "[PASS] Formats 3 and 4 correctly migrate with override = 0.\n";
+}
+
+void test_serializer_profile_format_compatibility() {
+    std::cout << "Testing serializer backward compatibility (Format 4 mismatch discarded, derived output)...\n";
+    auto p_canonical = npc::CharacterProfile::create_default(42, 99999);
+    std::string s5 = npc::Serializer::serialize_profile(p_canonical);
+
+    npc::CharacterProfile p_read;
+    bool ok = npc::Serializer::deserialize_profile(s5, p_read);
+    TEST_ASSERT(ok);
+
+    // Geometry in p_read must be derived canonically, matching p_canonical.derived_geometry()
+    TEST_ASSERT(p_read.body_geometry == p_canonical.derived_geometry());
+
+    std::cout << "[PASS] Deserializer Format 5 correctly derives geometry canonically from anatomy.\n";
+}
+
 int main() {
     std::cout << "Running Serializer verification tests...\n";
     test_serializer_roundtrip();
     test_serializer_corrupt_data_rejected();
+    test_serializer_profile_format_compatibility();
+    test_serializer_override_roundtrip_experiment();
+    test_serializer_profile_migration_v3_and_v4();
 
     if (npc::test::failure_count() > 0) {
         std::cerr << "Serializer tests FAILED with " << npc::test::failure_count() << " error(s).\n";

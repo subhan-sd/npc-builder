@@ -10,6 +10,14 @@
 
 #define NPC_API_VERSION 4
 
+// Minimum known struct sizes per C-struct type.
+// Jembatan C toleran terhadap ekstensi masa depan: pemanggil boleh menyediakan
+// struct_size >= ukuran minimum ini. Akses field masa depan harus dijaga
+// oleh pemeriksaan offset/ukuran terhadap struct_size.
+#define NPC_APPEARANCE_MIN_SIZE_V2   ((uint32_t)sizeof(CNpcAppearance))
+#define NPC_PROFILE_MIN_SIZE_V4      ((uint32_t)sizeof(CNpcProfile))
+#define NPC_RENDER_CONFIG_MIN_SIZE_V2 ((uint32_t)sizeof(CNpcRenderConfig))
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -105,6 +113,8 @@ typedef struct CNpcProfile {
     uint8_t amputations_mask[10]; // BodyPart::Count
 
     // Body geometry domain (v0.3.3 / API v4: 7 integer values)
+    // NOTE: These fields are output cache only and ignored on input.
+    // Geometry is always canonically derived from anatomy.
     int16_t geo_shoulder_w;
     int16_t geo_waist_w;
     int16_t geo_hips_w;

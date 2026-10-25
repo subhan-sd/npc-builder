@@ -16,7 +16,7 @@ NPC_C_EXPORT int npc_profile_create_default(
     CNpcProfile* out_profile
 ) {
     if (!out_profile) return NPC_ERR_INVALID_ARGUMENT;
-    if (out_profile->struct_size != sizeof(CNpcProfile)) return NPC_ERR_VERSION_MISMATCH;
+    if (out_profile->struct_size < NPC_PROFILE_MIN_SIZE_V4) return NPC_ERR_VERSION_MISMATCH;
 
     auto p = npc::CharacterProfile::create_default(npc_id, seed);
 
@@ -67,7 +67,7 @@ NPC_C_EXPORT int npc_profile_validate(
     const CNpcProfile* profile
 ) {
     if (!profile) return NPC_ERR_INVALID_ARGUMENT;
-    if (profile->struct_size != sizeof(CNpcProfile)) return NPC_ERR_VERSION_MISMATCH;
+    if (profile->struct_size < NPC_PROFILE_MIN_SIZE_V4) return NPC_ERR_VERSION_MISMATCH;
     if (profile->schema_version != npc::PROFILE_SCHEMA_VERSION) return NPC_ERR_VALIDATION_FAIL;
 
     npc::CharacterProfile p;
@@ -105,13 +105,8 @@ NPC_C_EXPORT int npc_profile_validate(
         p.physical.conditions.amputations[i] = (profile->amputations_mask[i] != 0);
     }
 
-    p.body_geometry.shoulder_w = profile->geo_shoulder_w;
-    p.body_geometry.waist_w = profile->geo_waist_w;
-    p.body_geometry.hips_w = profile->geo_hips_w;
-    p.body_geometry.thigh_thick = profile->geo_thigh_thick;
-    p.body_geometry.neck_w = profile->geo_neck_w;
-    p.body_geometry.arm_base_thick = profile->geo_arm_base_thick;
-    p.body_geometry.leg_gap = profile->geo_leg_gap;
+    // Notice: profile->geo_* fields are ignored as input. BodyGeometry is purely an output cache.
+    p.body_geometry = p.derived_geometry();
 
     auto res = npc::ProfileValidator::validate(p);
     return res.is_ok() ? NPC_SUCCESS : NPC_ERR_VALIDATION_FAIL;
@@ -129,7 +124,7 @@ NPC_C_EXPORT int npc_profile_render(
 ) {
     if (!c_profile || !out_rgba_buffer) return NPC_ERR_INVALID_ARGUMENT;
     if (injury_count > 0 && !injuries) return NPC_ERR_INVALID_ARGUMENT;
-    if (c_profile->struct_size != sizeof(CNpcProfile)) return NPC_ERR_VERSION_MISMATCH;
+    if (c_profile->struct_size < NPC_PROFILE_MIN_SIZE_V4) return NPC_ERR_VERSION_MISMATCH;
     if (buffer_size < static_cast<size_t>(npc::CharacterGenerator::CANVAS_WIDTH * npc::CharacterGenerator::CANVAS_HEIGHT * 4)) {
         return NPC_ERR_BUFFER_TOO_SMALL;
     }
@@ -173,13 +168,8 @@ NPC_C_EXPORT int npc_profile_render(
         p.physical.conditions.amputations[i] = (c_profile->amputations_mask[i] != 0);
     }
 
-    p.body_geometry.shoulder_w = c_profile->geo_shoulder_w;
-    p.body_geometry.waist_w = c_profile->geo_waist_w;
-    p.body_geometry.hips_w = c_profile->geo_hips_w;
-    p.body_geometry.thigh_thick = c_profile->geo_thigh_thick;
-    p.body_geometry.neck_w = c_profile->geo_neck_w;
-    p.body_geometry.arm_base_thick = c_profile->geo_arm_base_thick;
-    p.body_geometry.leg_gap = c_profile->geo_leg_gap;
+    // Notice: c_profile->geo_* fields are ignored as input. BodyGeometry is purely derived.
+    p.body_geometry = p.derived_geometry();
 
     if (injuries && injury_count > 0) {
         p.physical.conditions.injuries.reserve(injury_count);
@@ -228,7 +218,7 @@ NPC_C_EXPORT int npc_generate_appearance_v2(
     if (!out_app) {
         return NPC_ERR_INVALID_ARGUMENT;
     }
-    if (out_app->struct_size != sizeof(CNpcAppearance)) {
+    if (out_app->struct_size < NPC_APPEARANCE_MIN_SIZE_V2) {
         return NPC_ERR_VERSION_MISMATCH;
     }
 
@@ -273,7 +263,7 @@ NPC_C_EXPORT int npc_render_pixels_v2(
     if (!c_app || !config || !out_rgba_buffer) {
         return NPC_ERR_INVALID_ARGUMENT;
     }
-    if (c_app->struct_size != sizeof(CNpcAppearance) || config->struct_size != sizeof(CNpcRenderConfig)) {
+    if (c_app->struct_size < NPC_APPEARANCE_MIN_SIZE_V2 || config->struct_size < NPC_RENDER_CONFIG_MIN_SIZE_V2) {
         return NPC_ERR_VERSION_MISMATCH;
     }
     if (buffer_size < static_cast<size_t>(npc::CharacterGenerator::CANVAS_WIDTH * npc::CharacterGenerator::CANVAS_HEIGHT * 4)) {

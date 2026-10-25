@@ -145,9 +145,22 @@ struct CharacterProfile {
     AnatomyProfile anatomy;
     AppearanceProfile appearance;
     PhysicalConditionProfile physical;
-    BodyGeometry body_geometry{compute_geometry(0.5f, 0.5f)};
+    GeometryOverride geometry_override{};
+    // Output cache of canonical body geometry (never read as rendering input)
+    BodyGeometry body_geometry{compute_full_geometry(0.5f, 0.5f, 0.5f, 0.5f)};
 
     bool operator==(const CharacterProfile& other) const = default;
+
+    // Helper to calculate or refresh full derived geometry based on anatomy + override
+    BodyGeometry derived_geometry() const {
+        return compute_full_geometry(
+            anatomy.height,
+            anatomy.body_mass,
+            anatomy.muscularity,
+            anatomy.leg_ratio,
+            geometry_override
+        );
+    }
 
     static CharacterProfile create_default(uint32_t npc_id = 1, uint64_t seed = 12345) {
         CharacterProfile p;
@@ -158,7 +171,8 @@ struct CharacterProfile {
         p.anatomy = AnatomyProfile{};
         p.appearance = AppearanceProfile{};
         p.physical = PhysicalConditionProfile{};
-        p.body_geometry = compute_geometry(p.anatomy.body_mass, p.anatomy.muscularity);
+        p.geometry_override = GeometryOverride{};
+        p.body_geometry = p.derived_geometry();
         return p;
     }
 
@@ -172,7 +186,8 @@ struct CharacterProfile {
         p.anatomy = AnatomyProfile::from_legacy(app.body);
         p.appearance = AppearanceProfile::from_legacy(app.face);
         p.physical.conditions = cond;
-        p.body_geometry = compute_geometry(p.anatomy.body_mass, p.anatomy.muscularity);
+        p.geometry_override = GeometryOverride{};
+        p.body_geometry = p.derived_geometry();
         return p;
     }
 
@@ -308,34 +323,50 @@ public:
             }
         }
 
-        // Validate BodyGeometry bounds
-        if (profile.body_geometry.shoulder_w < 9 || profile.body_geometry.shoulder_w > 18) {
+        // Validate BodyGeometry bounds using canonical definitions from GeometryBounds
+        if (profile.body_geometry.shoulder_w < GeometryBounds::SHOULDER_W_MIN || profile.body_geometry.shoulder_w > GeometryBounds::SHOULDER_W_MAX) {
             result.outcome = ValidationOutcome::Invalid;
-            result.issues.push_back("body_geometry.shoulder_w out of bounds [9, 18]");
+            result.issues.push_back("body_geometry.shoulder_w out of bounds");
         }
-        if (profile.body_geometry.waist_w < 6 || profile.body_geometry.waist_w > 16) {
+        if (profile.body_geometry.waist_w < GeometryBounds::WAIST_W_MIN || profile.body_geometry.waist_w > GeometryBounds::WAIST_W_MAX) {
             result.outcome = ValidationOutcome::Invalid;
-            result.issues.push_back("body_geometry.waist_w out of bounds [6, 16]");
+            result.issues.push_back("body_geometry.waist_w out of bounds");
         }
-        if (profile.body_geometry.hips_w < 6 || profile.body_geometry.hips_w > 16) {
+        if (profile.body_geometry.hips_w < GeometryBounds::HIPS_W_MIN || profile.body_geometry.hips_w > GeometryBounds::HIPS_W_MAX) {
             result.outcome = ValidationOutcome::Invalid;
-            result.issues.push_back("body_geometry.hips_w out of bounds [6, 16]");
+            result.issues.push_back("body_geometry.hips_w out of bounds");
         }
-        if (profile.body_geometry.thigh_thick < 2 || profile.body_geometry.thigh_thick > 4) {
+        if (profile.body_geometry.thigh_thick < GeometryBounds::THIGH_THICK_MIN || profile.body_geometry.thigh_thick > GeometryBounds::THIGH_THICK_MAX) {
             result.outcome = ValidationOutcome::Invalid;
-            result.issues.push_back("body_geometry.thigh_thick out of bounds [2, 4]");
+            result.issues.push_back("body_geometry.thigh_thick out of bounds");
         }
-        if (profile.body_geometry.neck_w < 2 || profile.body_geometry.neck_w > 3) {
+        if (profile.body_geometry.neck_w < GeometryBounds::NECK_W_MIN || profile.body_geometry.neck_w > GeometryBounds::NECK_W_MAX) {
             result.outcome = ValidationOutcome::Invalid;
-            result.issues.push_back("body_geometry.neck_w out of bounds [2, 3]");
+            result.issues.push_back("body_geometry.neck_w out of bounds");
         }
-        if (profile.body_geometry.arm_base_thick < 2 || profile.body_geometry.arm_base_thick > 3) {
+        if (profile.body_geometry.arm_base_thick < GeometryBounds::ARM_BASE_THICK_MIN || profile.body_geometry.arm_base_thick > GeometryBounds::ARM_BASE_THICK_MAX) {
             result.outcome = ValidationOutcome::Invalid;
-            result.issues.push_back("body_geometry.arm_base_thick out of bounds [2, 3]");
+            result.issues.push_back("body_geometry.arm_base_thick out of bounds");
         }
-        if (profile.body_geometry.leg_gap < 0 || profile.body_geometry.leg_gap > 1) {
+        if (profile.body_geometry.leg_gap < GeometryBounds::LEG_GAP_MIN || profile.body_geometry.leg_gap > GeometryBounds::LEG_GAP_MAX) {
             result.outcome = ValidationOutcome::Invalid;
-            result.issues.push_back("body_geometry.leg_gap out of bounds [0, 1]");
+            result.issues.push_back("body_geometry.leg_gap out of bounds");
+        }
+        if (profile.body_geometry.total_height < GeometryBounds::TOTAL_HEIGHT_MIN || profile.body_geometry.total_height > GeometryBounds::TOTAL_HEIGHT_MAX) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("body_geometry.total_height out of bounds");
+        }
+        if (profile.body_geometry.leg_len < GeometryBounds::LEG_LEN_MIN || profile.body_geometry.leg_len > GeometryBounds::LEG_LEN_MAX) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("body_geometry.leg_len out of bounds");
+        }
+        if (profile.body_geometry.torso_h < GeometryBounds::TORSO_H_MIN || profile.body_geometry.torso_h > GeometryBounds::TORSO_H_MAX) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("body_geometry.torso_h out of bounds");
+        }
+        if (profile.body_geometry.arm_len < GeometryBounds::ARM_LEN_MIN || profile.body_geometry.arm_len > GeometryBounds::ARM_LEN_MAX) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("body_geometry.arm_len out of bounds");
         }
 
         return result;
@@ -473,7 +504,7 @@ public:
         }
 
         // Recompute body geometry if anatomy was normalized
-        profile.body_geometry = compute_geometry(profile.anatomy.body_mass, profile.anatomy.muscularity);
+        profile.body_geometry = profile.derived_geometry();
 
         result.outcome = normalized ? ValidationOutcome::ValidNormalized : ValidationOutcome::Valid;
         return result;
