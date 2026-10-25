@@ -59,6 +59,12 @@ jobs:
           chmod +x /usr/local/bin/godot
           godot --version
 
+      - name: Initialize Godot Extension Cache
+        if: matrix.os == 'ubuntu-latest' && matrix.build_type == 'Release'
+        run: |
+          mkdir -p godot/.godot
+          echo "res://bin/npc_builder.gdextension" > godot/.godot/extension_list.cfg
+
       - name: Run Godot Smoke Test with Fresh Extension
         if: matrix.os == 'ubuntu-latest' && matrix.build_type == 'Release'
         run: godot --headless --path godot --script scripts/smoke_test_profile.gd
