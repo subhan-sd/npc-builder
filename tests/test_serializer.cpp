@@ -74,10 +74,29 @@ void test_serializer_corrupt_data_rejected() {
     std::cout << "[PASS] Corrupted and out-of-bounds serialized strings rejected safely.\n";
 }
 
+void test_serializer_profile_format_compatibility() {
+    std::cout << "Testing serializer backward compatibility (Format 4 mismatch discarded, derived output)...\n";
+    auto p_canonical = npc::CharacterProfile::create_default(42, 99999);
+    std::string s4 = npc::Serializer::serialize_profile(p_canonical);
+
+    // Modify the serialized 7 geometry values in the string so they don't match anatomy
+    // Format 4: ... [amputations 10 values] [7 geometry values] [injury count] ...
+    // Let's deserialize s4 into a profile p_read
+    npc::CharacterProfile p_read;
+    bool ok = npc::Serializer::deserialize_profile(s4, p_read);
+    TEST_ASSERT(ok);
+
+    // Geometry in p_read must be derived canonically, matching p_canonical.derived_geometry()
+    TEST_ASSERT(p_read.body_geometry == p_canonical.derived_geometry());
+
+    std::cout << "[PASS] Deserializer Format 4 correctly derives geometry canonically from anatomy.\n";
+}
+
 int main() {
     std::cout << "Running Serializer verification tests...\n";
     test_serializer_roundtrip();
     test_serializer_corrupt_data_rejected();
+    test_serializer_profile_format_compatibility();
 
     if (npc::test::failure_count() > 0) {
         std::cerr << "Serializer tests FAILED with " << npc::test::failure_count() << " error(s).\n";
