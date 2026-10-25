@@ -105,6 +105,8 @@ typedef struct CNpcProfile {
     uint8_t amputations_mask[10]; // BodyPart::Count
 
     // Body geometry domain (v0.3.3 / API v4: 7 integer values)
+    // NOTE: These fields are output cache only and ignored on input.
+    // Geometry is always canonically derived from anatomy.
     int16_t geo_shoulder_w;
     int16_t geo_waist_w;
     int16_t geo_hips_w;

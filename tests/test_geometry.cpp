@@ -34,24 +34,25 @@ void test_compute_geometry_accuracy() {
         TEST_ASSERT_EQ(geo.thigh_thick, exp_thigh_thick);
         TEST_ASSERT_EQ(geo.arm_base_thick, exp_arm_thick);
 
-        // Also check p.body_geometry is identical
-        TEST_ASSERT_EQ(p.body_geometry.shoulder_w, exp_shoulder_w);
-        TEST_ASSERT_EQ(p.body_geometry.waist_w, exp_waist_w);
-        TEST_ASSERT_EQ(p.body_geometry.hips_w, exp_hips_w);
-        TEST_ASSERT_EQ(p.body_geometry.thigh_thick, exp_thigh_thick);
-        TEST_ASSERT_EQ(p.body_geometry.neck_w, exp_neck_w);
-        TEST_ASSERT_EQ(p.body_geometry.arm_base_thick, exp_arm_thick);
-        TEST_ASSERT_EQ(p.body_geometry.leg_gap, exp_leg_gap);
+        // Check derived_geometry() is identical to canonical expected values
+        auto der_geo = p.derived_geometry();
+        TEST_ASSERT_EQ(der_geo.shoulder_w, exp_shoulder_w);
+        TEST_ASSERT_EQ(der_geo.waist_w, exp_waist_w);
+        TEST_ASSERT_EQ(der_geo.hips_w, exp_hips_w);
+        TEST_ASSERT_EQ(der_geo.thigh_thick, exp_thigh_thick);
+        TEST_ASSERT_EQ(der_geo.neck_w, exp_neck_w);
+        TEST_ASSERT_EQ(der_geo.arm_base_thick, exp_arm_thick);
+        TEST_ASSERT_EQ(der_geo.leg_gap, exp_leg_gap);
         // Check vertical/length derived values
         int exp_total_height = 36 + static_cast<int>(std::round(p.anatomy.height * 6.0f));
         int exp_leg_len = 13 + static_cast<int>(std::round(p.anatomy.leg_ratio * 4.0f));
         int exp_torso_h = std::max(11, exp_total_height - 8 - 2 - exp_leg_len);
         int exp_arm_len = exp_torso_h + 2;
 
-        TEST_ASSERT_EQ(p.body_geometry.total_height, exp_total_height);
-        TEST_ASSERT_EQ(p.body_geometry.leg_len, exp_leg_len);
-        TEST_ASSERT_EQ(p.body_geometry.torso_h, exp_torso_h);
-        TEST_ASSERT_EQ(p.body_geometry.arm_len, exp_arm_len);
+        TEST_ASSERT_EQ(der_geo.total_height, exp_total_height);
+        TEST_ASSERT_EQ(der_geo.leg_len, exp_leg_len);
+        TEST_ASSERT_EQ(der_geo.torso_h, exp_torso_h);
+        TEST_ASSERT_EQ(der_geo.arm_len, exp_arm_len);
     }
     std::cout << "[PASS] compute_geometry matches canonical formulas identically across 100 seeds.\n";
 }

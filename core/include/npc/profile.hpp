@@ -146,6 +146,7 @@ struct CharacterProfile {
     AppearanceProfile appearance;
     PhysicalConditionProfile physical;
     GeometryOverride geometry_override{};
+    // Output cache of canonical body geometry (never read as rendering input)
     BodyGeometry body_geometry{compute_full_geometry(0.5f, 0.5f, 0.5f, 0.5f)};
 
     bool operator==(const CharacterProfile& other) const = default;
