@@ -6,10 +6,13 @@
 #include <vector>
 #include <string>
 
-// Generates 7,360 reference combinations as specified in BRD Section 7.1.1:
+// Generates 7,884 reference combinations:
 // 1. Base group: seeds 1..100, 6 animation states, 4 directions, 3 animation times (0.0, 0.25, 0.5) = 7,200
 // 2. Condition group: seeds 1..10, Idle, South, 0.0s, 16 scenarios per seed (10 amputations + 6 injuries) = 160
-// Total = 7,360 combinations
+// 3. Per-part injury group: 10 body parts x 4 directions = 40 scenarios x 10 seeds = 400
+// 4. Combined amputation + injury group: 10 scenarios x 10 seeds = 100
+// 5. Extremes / boundary profiles: 6 boundary cases x 4 directions = 24
+// Total = 7,884 combinations
 
 int main(int argc, char** argv) {
     std::string out_path = "tests/golden/matriks-acuan.txt";
@@ -23,7 +26,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    std::cout << "Generating 7,360 golden fixture hashes into " << out_path << "...\n";
+    std::cout << "Generating 7,884 golden fixture hashes into " << out_path << "...\n";
     int count = 0;
 
     // 1. Base group (7,200)

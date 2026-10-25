@@ -7,7 +7,7 @@
 #include <vector>
 #include <string>
 
-// Test verifying 7,360 golden fixture combinations against tests/golden/matriks-acuan.txt (BRD Fungsional-005)
+// Test verifying golden fixture combinations against tests/golden/matriks-acuan.txt
 
 int main(int argc, char** argv) {
     std::string golden_path = "tests/golden/matriks-acuan.txt";
@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    std::cout << "Verifying 7,360 combinations against " << golden_path << "...\n";
+    std::cout << "Verifying golden combinations against " << golden_path << "...\n";
 
     std::string line;
     int tested_count = 0;
