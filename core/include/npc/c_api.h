@@ -10,6 +10,14 @@
 
 #define NPC_API_VERSION 4
 
+// Minimum known struct sizes per C-struct type.
+// Jembatan C toleran terhadap ekstensi masa depan: pemanggil boleh menyediakan
+// struct_size >= ukuran minimum ini. Akses field masa depan harus dijaga
+// oleh pemeriksaan offset/ukuran terhadap struct_size.
+#define NPC_APPEARANCE_MIN_SIZE_V2   ((uint32_t)sizeof(CNpcAppearance))
+#define NPC_PROFILE_MIN_SIZE_V4      ((uint32_t)sizeof(CNpcProfile))
+#define NPC_RENDER_CONFIG_MIN_SIZE_V2 ((uint32_t)sizeof(CNpcRenderConfig))
+
 #ifdef __cplusplus
 extern "C" {
 #endif

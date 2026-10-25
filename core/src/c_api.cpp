@@ -16,7 +16,7 @@ NPC_C_EXPORT int npc_profile_create_default(
     CNpcProfile* out_profile
 ) {
     if (!out_profile) return NPC_ERR_INVALID_ARGUMENT;
-    if (out_profile->struct_size < sizeof(CNpcProfile)) return NPC_ERR_VERSION_MISMATCH;
+    if (out_profile->struct_size < NPC_PROFILE_MIN_SIZE_V4) return NPC_ERR_VERSION_MISMATCH;
 
     auto p = npc::CharacterProfile::create_default(npc_id, seed);
 
@@ -67,7 +67,7 @@ NPC_C_EXPORT int npc_profile_validate(
     const CNpcProfile* profile
 ) {
     if (!profile) return NPC_ERR_INVALID_ARGUMENT;
-    if (profile->struct_size < sizeof(CNpcProfile)) return NPC_ERR_VERSION_MISMATCH;
+    if (profile->struct_size < NPC_PROFILE_MIN_SIZE_V4) return NPC_ERR_VERSION_MISMATCH;
     if (profile->schema_version != npc::PROFILE_SCHEMA_VERSION) return NPC_ERR_VALIDATION_FAIL;
 
     npc::CharacterProfile p;
@@ -124,7 +124,7 @@ NPC_C_EXPORT int npc_profile_render(
 ) {
     if (!c_profile || !out_rgba_buffer) return NPC_ERR_INVALID_ARGUMENT;
     if (injury_count > 0 && !injuries) return NPC_ERR_INVALID_ARGUMENT;
-    if (c_profile->struct_size < sizeof(CNpcProfile)) return NPC_ERR_VERSION_MISMATCH;
+    if (c_profile->struct_size < NPC_PROFILE_MIN_SIZE_V4) return NPC_ERR_VERSION_MISMATCH;
     if (buffer_size < static_cast<size_t>(npc::CharacterGenerator::CANVAS_WIDTH * npc::CharacterGenerator::CANVAS_HEIGHT * 4)) {
         return NPC_ERR_BUFFER_TOO_SMALL;
     }
@@ -218,7 +218,7 @@ NPC_C_EXPORT int npc_generate_appearance_v2(
     if (!out_app) {
         return NPC_ERR_INVALID_ARGUMENT;
     }
-    if (out_app->struct_size < sizeof(CNpcAppearance)) {
+    if (out_app->struct_size < NPC_APPEARANCE_MIN_SIZE_V2) {
         return NPC_ERR_VERSION_MISMATCH;
     }
 
@@ -263,7 +263,7 @@ NPC_C_EXPORT int npc_render_pixels_v2(
     if (!c_app || !config || !out_rgba_buffer) {
         return NPC_ERR_INVALID_ARGUMENT;
     }
-    if (c_app->struct_size < sizeof(CNpcAppearance) || config->struct_size < sizeof(CNpcRenderConfig)) {
+    if (c_app->struct_size < NPC_APPEARANCE_MIN_SIZE_V2 || config->struct_size < NPC_RENDER_CONFIG_MIN_SIZE_V2) {
         return NPC_ERR_VERSION_MISMATCH;
     }
     if (buffer_size < static_cast<size_t>(npc::CharacterGenerator::CANVAS_WIDTH * npc::CharacterGenerator::CANVAS_HEIGHT * 4)) {

@@ -237,12 +237,12 @@ void test_c_api_profile_functions() {
 
     // Old struct size rejected with NPC_ERR_VERSION_MISMATCH
     CNpcProfile old_sized_prof{};
-    old_sized_prof.struct_size = sizeof(CNpcProfile) - 14; // missing 7x int16_t
+    old_sized_prof.struct_size = NPC_PROFILE_MIN_SIZE_V4 - 14; // missing 7x int16_t
     TEST_ASSERT_EQ(npc_profile_validate(&old_sized_prof), NPC_ERR_VERSION_MISMATCH);
 
-    // Forward compatibility: future larger struct size must succeed
+    // Forward compatibility: future larger struct size must succeed without reading out of bounds
     CNpcProfile larger_prof = c_prof;
-    larger_prof.struct_size = sizeof(CNpcProfile) + 32;
+    larger_prof.struct_size = NPC_PROFILE_MIN_SIZE_V4 + 64;
     TEST_ASSERT_EQ(npc_profile_validate(&larger_prof), NPC_SUCCESS);
 
     // Validate valid C profile
