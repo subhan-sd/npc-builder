@@ -82,6 +82,14 @@ void test_geometry_overrides() {
     TEST_ASSERT_EQ(clamped_geo.shoulder_w, npc::GeometryBounds::SHOULDER_W_MAX);
     TEST_ASSERT_EQ(clamped_geo.chest_curve, npc::GeometryBounds::CHEST_CURVE_MAX);
 
+    // Stale body_geometry cache ignored: derived_geometry() always recalculates
+    p.geometry_override.chest_curve = 3;
+    p.body_geometry.chest_curve = 0; // Stale cached value
+    TEST_ASSERT_EQ(p.derived_geometry().chest_curve, 3);
+
+    // Reset override
+    p.geometry_override = npc::GeometryOverride{};
+
     std::cout << "[PASS] GeometryOverride zero-identity, deviations, and clamping verified.\n";
 }
 

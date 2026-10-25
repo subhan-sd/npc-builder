@@ -92,7 +92,7 @@ static Dictionary profile_to_dict(const npc::CharacterProfile& p) {
     physical["injuries"] = injs;
     dict["physical"] = physical;
 
-    // Body Geometry (v0.3.3 / v0.3.3.1)
+    // Body Geometry (v0.3.3 / v0.3.3.1 / v0.3.4)
     Dictionary geo;
     geo["shoulder_w"] = p.body_geometry.shoulder_w;
     geo["waist_w"] = p.body_geometry.waist_w;
@@ -105,9 +105,10 @@ static Dictionary profile_to_dict(const npc::CharacterProfile& p) {
     geo["leg_len"] = p.body_geometry.leg_len;
     geo["torso_h"] = p.body_geometry.torso_h;
     geo["arm_len"] = p.body_geometry.arm_len;
+    geo["chest_curve"] = p.body_geometry.chest_curve;
     dict["body_geometry"] = geo;
 
-    // Geometry Override (v0.3.3.1)
+    // Geometry Override (v0.3.3.1 / v0.3.4)
     Dictionary ovr;
     ovr["shoulder_w"] = p.geometry_override.shoulder_w;
     ovr["waist_w"] = p.geometry_override.waist_w;
@@ -120,6 +121,7 @@ static Dictionary profile_to_dict(const npc::CharacterProfile& p) {
     ovr["leg_len"] = p.geometry_override.leg_len;
     ovr["torso_h"] = p.geometry_override.torso_h;
     ovr["arm_len"] = p.geometry_override.arm_len;
+    ovr["chest_curve"] = p.geometry_override.chest_curve;
     dict["geometry_override"] = ovr;
 
     return dict;
@@ -223,24 +225,14 @@ static npc::CharacterProfile dict_to_profile(const Dictionary& dict) {
         p.geometry_override.leg_len = ovr.get("leg_len", 0);
         p.geometry_override.torso_h = ovr.get("torso_h", 0);
         p.geometry_override.arm_len = ovr.get("arm_len", 0);
+        p.geometry_override.chest_curve = ovr.get("chest_curve", 0);
     }
 
-    if (dict.has("body_geometry")) {
-        Dictionary geo = dict["body_geometry"];
-        p.body_geometry.shoulder_w = geo.get("shoulder_w", p.body_geometry.shoulder_w);
-        p.body_geometry.waist_w = geo.get("waist_w", p.body_geometry.waist_w);
-        p.body_geometry.hips_w = geo.get("hips_w", p.body_geometry.hips_w);
-        p.body_geometry.thigh_thick = geo.get("thigh_thick", p.body_geometry.thigh_thick);
-        p.body_geometry.neck_w = geo.get("neck_w", p.body_geometry.neck_w);
-        p.body_geometry.arm_base_thick = geo.get("arm_base_thick", p.body_geometry.arm_base_thick);
-        p.body_geometry.leg_gap = geo.get("leg_gap", p.body_geometry.leg_gap);
-        p.body_geometry.total_height = geo.get("total_height", p.body_geometry.total_height);
-        p.body_geometry.leg_len = geo.get("leg_len", p.body_geometry.leg_len);
-        p.body_geometry.torso_h = geo.get("torso_h", p.body_geometry.torso_h);
-        p.body_geometry.arm_len = geo.get("arm_len", p.body_geometry.arm_len);
-    } else {
-        p.body_geometry = p.derived_geometry();
-    }
+    // Canonical derived geometry: BodyGeometry is an output cache deterministically
+    // derived from anatomy + geometry_override. When dictionary has cached body_geometry,
+    // we preserve it for compatibility if no anatomy/override exists, but recalculate
+    // to ensure modified anatomy/overrides take immediate effect.
+    p.body_geometry = p.derived_geometry();
 
     return p;
 }
