@@ -36,6 +36,9 @@ struct GeometryBounds {
     static constexpr int TORSO_H_MAX = 19;
     static constexpr int ARM_LEN_MIN = 13;
     static constexpr int ARM_LEN_MAX = 21;
+
+    static constexpr int CHEST_CURVE_MIN = 0;
+    static constexpr int CHEST_CURVE_MAX = 4;
 };
 
 // Integer offsets for explicit overrides. 0 means formula default.
@@ -51,6 +54,7 @@ struct GeometryOverride {
     int leg_len{0};
     int torso_h{0};
     int arm_len{0};
+    int chest_curve{0};
 
     bool operator==(const GeometryOverride& other) const = default;
 };
@@ -72,6 +76,9 @@ struct BodyGeometry {
     int torso_h{14};         // Torso height (max(11, total_height - 8 - 2 - leg_len))
     int arm_len{16};         // Arm length (torso_h + 2)
 
+    // Morphological contour / female anatomy support (v0.3.4 / FR-05)
+    int chest_curve{0};      // 0: Flat/Standard, 1..4: Pronounced chest volume/contour
+
     bool operator==(const BodyGeometry& other) const = default;
 };
 
@@ -82,6 +89,8 @@ inline BodyGeometry compute_full_geometry(
     float mass,
     float musc,
     float leg_ratio,
+    float torso_ratio = 0.5f,
+    float arm_ratio = 0.5f,
     const GeometryOverride& ovr = {}
 ) {
     BodyGeometry geo;
@@ -120,7 +129,9 @@ inline BodyGeometry compute_full_geometry(
     int raw_total_h = 36 + static_cast<int>(std::round(height * 6.0f));
     geo.total_height = std::clamp(raw_total_h + ovr.total_height, GeometryBounds::TOTAL_HEIGHT_MIN, GeometryBounds::TOTAL_HEIGHT_MAX);
 
-    int raw_leg_len = 13 + static_cast<int>(std::round(leg_ratio * 4.0f));
+    // Leg length is influenced by leg_ratio and inversely by torso_ratio (torso_ratio=0.5f gives 0 offset)
+    int torso_adj = static_cast<int>(std::round((0.5f - torso_ratio) * 2.0f));
+    int raw_leg_len = 13 + static_cast<int>(std::round(leg_ratio * 4.0f)) + torso_adj;
     geo.leg_len = std::clamp(raw_leg_len + ovr.leg_len, GeometryBounds::LEG_LEN_MIN, GeometryBounds::LEG_LEN_MAX);
 
     // Head is 8px, neck connection is 2px
@@ -128,8 +139,13 @@ inline BodyGeometry compute_full_geometry(
     if (raw_torso_h < 11) raw_torso_h = 11;
     geo.torso_h = std::clamp(raw_torso_h + ovr.torso_h, GeometryBounds::TORSO_H_MIN, GeometryBounds::TORSO_H_MAX);
 
-    int raw_arm_len = geo.torso_h + 2;
+    // Arm length is torso_h + 2 by default, modulated by arm_ratio (arm_ratio=0.5f gives 0 offset)
+    int arm_adj = static_cast<int>(std::round((arm_ratio - 0.5f) * 2.0f));
+    int raw_arm_len = geo.torso_h + 2 + arm_adj;
     geo.arm_len = std::clamp(raw_arm_len + ovr.arm_len, GeometryBounds::ARM_LEN_MIN, GeometryBounds::ARM_LEN_MAX);
+
+    // 3. Chest curve contour
+    geo.chest_curve = std::clamp(ovr.chest_curve, GeometryBounds::CHEST_CURVE_MIN, GeometryBounds::CHEST_CURVE_MAX);
 
     return geo;
 }

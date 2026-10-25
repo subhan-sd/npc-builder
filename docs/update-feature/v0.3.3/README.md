@@ -4,7 +4,7 @@
 **Versi:** `v0.3.3`  
 **Fitur Utama:** Ekstraksi Geometri Tubuh (`BodyGeometry`), Perbaikan Cedera pada Amputasi, Batas Cedera Ekstremitas, Kenaikan Versi Lintas Lapisan & Perluasan Matriks Acuan  
 **Cabang:** `v0.3.3-body-geometry-refactor`  
-**Dokumen Kebutuhan Terkait:** `docs/kebutuhan-bisnis/2026-10-25-refaktor-geometri-tubuh.md`
+**Dokumen Kebutuhan Terkait:** `docs/V0.3/V0.3.3/BRD_Refaktor_Geometri_Tubuh_V0.3.3.md`
 
 ---
 

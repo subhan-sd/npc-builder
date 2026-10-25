@@ -92,7 +92,7 @@ static Dictionary profile_to_dict(const npc::CharacterProfile& p) {
     physical["injuries"] = injs;
     dict["physical"] = physical;
 
-    // Body Geometry (v0.3.3)
+    // Body Geometry (v0.3.3 / v0.3.3.1)
     Dictionary geo;
     geo["shoulder_w"] = p.body_geometry.shoulder_w;
     geo["waist_w"] = p.body_geometry.waist_w;
@@ -101,7 +101,26 @@ static Dictionary profile_to_dict(const npc::CharacterProfile& p) {
     geo["neck_w"] = p.body_geometry.neck_w;
     geo["arm_base_thick"] = p.body_geometry.arm_base_thick;
     geo["leg_gap"] = p.body_geometry.leg_gap;
+    geo["total_height"] = p.body_geometry.total_height;
+    geo["leg_len"] = p.body_geometry.leg_len;
+    geo["torso_h"] = p.body_geometry.torso_h;
+    geo["arm_len"] = p.body_geometry.arm_len;
     dict["body_geometry"] = geo;
+
+    // Geometry Override (v0.3.3.1)
+    Dictionary ovr;
+    ovr["shoulder_w"] = p.geometry_override.shoulder_w;
+    ovr["waist_w"] = p.geometry_override.waist_w;
+    ovr["hips_w"] = p.geometry_override.hips_w;
+    ovr["thigh_thick"] = p.geometry_override.thigh_thick;
+    ovr["neck_w"] = p.geometry_override.neck_w;
+    ovr["arm_base_thick"] = p.geometry_override.arm_base_thick;
+    ovr["leg_gap"] = p.geometry_override.leg_gap;
+    ovr["total_height"] = p.geometry_override.total_height;
+    ovr["leg_len"] = p.geometry_override.leg_len;
+    ovr["torso_h"] = p.geometry_override.torso_h;
+    ovr["arm_len"] = p.geometry_override.arm_len;
+    dict["geometry_override"] = ovr;
 
     return dict;
 }
@@ -191,6 +210,21 @@ static npc::CharacterProfile dict_to_profile(const Dictionary& dict) {
         }
     }
 
+    if (dict.has("geometry_override")) {
+        Dictionary ovr = dict["geometry_override"];
+        p.geometry_override.shoulder_w = ovr.get("shoulder_w", 0);
+        p.geometry_override.waist_w = ovr.get("waist_w", 0);
+        p.geometry_override.hips_w = ovr.get("hips_w", 0);
+        p.geometry_override.thigh_thick = ovr.get("thigh_thick", 0);
+        p.geometry_override.neck_w = ovr.get("neck_w", 0);
+        p.geometry_override.arm_base_thick = ovr.get("arm_base_thick", 0);
+        p.geometry_override.leg_gap = ovr.get("leg_gap", 0);
+        p.geometry_override.total_height = ovr.get("total_height", 0);
+        p.geometry_override.leg_len = ovr.get("leg_len", 0);
+        p.geometry_override.torso_h = ovr.get("torso_h", 0);
+        p.geometry_override.arm_len = ovr.get("arm_len", 0);
+    }
+
     if (dict.has("body_geometry")) {
         Dictionary geo = dict["body_geometry"];
         p.body_geometry.shoulder_w = geo.get("shoulder_w", p.body_geometry.shoulder_w);
@@ -200,8 +234,12 @@ static npc::CharacterProfile dict_to_profile(const Dictionary& dict) {
         p.body_geometry.neck_w = geo.get("neck_w", p.body_geometry.neck_w);
         p.body_geometry.arm_base_thick = geo.get("arm_base_thick", p.body_geometry.arm_base_thick);
         p.body_geometry.leg_gap = geo.get("leg_gap", p.body_geometry.leg_gap);
+        p.body_geometry.total_height = geo.get("total_height", p.body_geometry.total_height);
+        p.body_geometry.leg_len = geo.get("leg_len", p.body_geometry.leg_len);
+        p.body_geometry.torso_h = geo.get("torso_h", p.body_geometry.torso_h);
+        p.body_geometry.arm_len = geo.get("arm_len", p.body_geometry.arm_len);
     } else {
-        p.body_geometry = npc::compute_geometry(p.anatomy.body_mass, p.anatomy.muscularity);
+        p.body_geometry = p.derived_geometry();
     }
 
     return p;

@@ -69,14 +69,18 @@ void test_geometry_overrides() {
     // Explicit override deviation within bounds
     p.geometry_override.shoulder_w = 2;
     p.geometry_override.torso_h = 1;
+    p.geometry_override.chest_curve = 2;
     auto mod_geo = p.derived_geometry();
     TEST_ASSERT_EQ(mod_geo.shoulder_w, base_geo.shoulder_w + 2);
     TEST_ASSERT_EQ(mod_geo.torso_h, base_geo.torso_h + 1);
+    TEST_ASSERT_EQ(mod_geo.chest_curve, 2);
 
     // Clamping to canonical bounds
     p.geometry_override.shoulder_w = 999;
+    p.geometry_override.chest_curve = 999;
     auto clamped_geo = p.derived_geometry();
     TEST_ASSERT_EQ(clamped_geo.shoulder_w, npc::GeometryBounds::SHOULDER_W_MAX);
+    TEST_ASSERT_EQ(clamped_geo.chest_curve, npc::GeometryBounds::CHEST_CURVE_MAX);
 
     std::cout << "[PASS] GeometryOverride zero-identity, deviations, and clamping verified.\n";
 }
@@ -302,10 +306,38 @@ void test_posed_placement_differential_against_render() {
               << tested_combinations << " combinations checked).\n";
 }
 
+static void test_proportions_torso_and_arm_ratio() {
+    std::cout << "Testing torso_ratio and arm_ratio influences (v0.3.4)...\n";
+
+    // 1. Long torso vs short torso at identical total height
+    auto geo_baseline = npc::compute_full_geometry(0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f);
+    auto geo_long_torso = npc::compute_full_geometry(0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.5f);
+    auto geo_short_torso = npc::compute_full_geometry(0.5f, 0.5f, 0.5f, 0.5f, 0.0f, 0.5f);
+
+    TEST_ASSERT_EQ(geo_long_torso.total_height, geo_baseline.total_height);
+    TEST_ASSERT_EQ(geo_short_torso.total_height, geo_baseline.total_height);
+
+    TEST_ASSERT(geo_long_torso.torso_h >= geo_baseline.torso_h);
+    TEST_ASSERT(geo_long_torso.leg_len <= geo_baseline.leg_len);
+
+    TEST_ASSERT(geo_short_torso.torso_h <= geo_baseline.torso_h);
+    TEST_ASSERT(geo_short_torso.leg_len >= geo_baseline.leg_len);
+
+    // 2. Arm ratio influence
+    auto geo_long_arm = npc::compute_full_geometry(0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f);
+    auto geo_short_arm = npc::compute_full_geometry(0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.0f);
+
+    TEST_ASSERT(geo_long_arm.arm_len >= geo_baseline.arm_len);
+    TEST_ASSERT(geo_short_arm.arm_len <= geo_baseline.arm_len);
+
+    std::cout << "[PASS] Torso and arm ratios verified.\n";
+}
+
 int main() {
     std::cout << "Running BodyGeometry unit tests (v0.3.3.1)...\n";
     test_compute_geometry_accuracy();
     test_geometry_overrides();
+    test_proportions_torso_and_arm_ratio();
     test_clothing_foundation_posed_placement();
     test_posed_placement_differential_against_render();
 

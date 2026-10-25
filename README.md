@@ -150,11 +150,16 @@ ctest --test-dir build -C Release --output-on-failure
 │   ├── generate_fixtures.cpp # Tool generator fixture acuan
 │   └── benchmark_render.cpp  # Microbenchmark kecepatan render (~1.2 us/frame)
 ├── docs/
-│   ├── BRD_NPC_BUILDER_V0.2.1.md
-│   ├── BRD_NPC_Builder_GDExtension_dilanjutkan.md
-│   ├── LAPORAN_AUDIT_DAN_RENCANA_MIGRASI_GDEXTENSION.md
-│   ├── README_v0.2.1.md   # Laporan rilis visual v0.2.1
-│   ├── V0.3/              # Dokumen kebutuhan bisnis v0.3.1 (Character Profile System)
+│   ├── V0.1/              # Dokumen kebutuhan bisnis v0.1
+│   ├── V0.2/              # Dokumen kebutuhan bisnis & audit v0.2
+│   │   └── V0.2.1/        # Dokumen BRD, audit, & rilis visual v0.2.1
+│   ├── V0.3/              # Dokumen kebutuhan bisnis, BRD, & audit seri v0.3
+│   │   ├── V0.3.1/
+│   │   ├── V0.3.2/
+│   │   ├── V0.3.3/
+│   │   └── V0.3.4/
+│   ├── migrasi-gdextension/ # Dokumen BRD & audit integrasi GDExtension
+│   ├── update-feature/    # Catatan rilis per fitur
 │   └── references/        # Fixture gambar & screenshot hasil pengujian
 └── README.md              # Dokumentasi utama proyek
 ```

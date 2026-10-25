@@ -27,6 +27,59 @@ struct AnatomyProfile {
 
     bool operator==(const AnatomyProfile& other) const = default;
 
+    // Canonical Morphology Presets (v0.3.4 / FR-03)
+    static AnatomyProfile preset_slim() {
+        return AnatomyProfile{
+            .height = 0.5f,
+            .body_mass = 0.2f,
+            .muscularity = 0.2f,
+            .posture = 0.0f,
+            .head_scale = 0.5f,
+            .torso_ratio = 0.5f,
+            .arm_ratio = 0.5f,
+            .leg_ratio = 0.5f
+        };
+    }
+
+    static AnatomyProfile preset_average() {
+        return AnatomyProfile{
+            .height = 0.5f,
+            .body_mass = 0.5f,
+            .muscularity = 0.5f,
+            .posture = 0.0f,
+            .head_scale = 0.5f,
+            .torso_ratio = 0.5f,
+            .arm_ratio = 0.5f,
+            .leg_ratio = 0.5f
+        };
+    }
+
+    static AnatomyProfile preset_heavy() {
+        return AnatomyProfile{
+            .height = 0.5f,
+            .body_mass = 0.85f,
+            .muscularity = 0.35f,
+            .posture = 0.0f,
+            .head_scale = 0.5f,
+            .torso_ratio = 0.5f,
+            .arm_ratio = 0.5f,
+            .leg_ratio = 0.5f
+        };
+    }
+
+    static AnatomyProfile preset_muscular() {
+        return AnatomyProfile{
+            .height = 0.5f,
+            .body_mass = 0.45f,
+            .muscularity = 0.85f,
+            .posture = 0.0f,
+            .head_scale = 0.5f,
+            .torso_ratio = 0.5f,
+            .arm_ratio = 0.5f,
+            .leg_ratio = 0.5f
+        };
+    }
+
     // Convert from legacy BodyConfiguration
     static AnatomyProfile from_legacy(const BodyConfiguration& b) {
         return AnatomyProfile{
@@ -158,6 +211,8 @@ struct CharacterProfile {
             anatomy.body_mass,
             anatomy.muscularity,
             anatomy.leg_ratio,
+            anatomy.torso_ratio,
+            anatomy.arm_ratio,
             geometry_override
         );
     }
@@ -367,6 +422,10 @@ public:
         if (profile.body_geometry.arm_len < GeometryBounds::ARM_LEN_MIN || profile.body_geometry.arm_len > GeometryBounds::ARM_LEN_MAX) {
             result.outcome = ValidationOutcome::Invalid;
             result.issues.push_back("body_geometry.arm_len out of bounds");
+        }
+        if (profile.body_geometry.chest_curve < GeometryBounds::CHEST_CURVE_MIN || profile.body_geometry.chest_curve > GeometryBounds::CHEST_CURVE_MAX) {
+            result.outcome = ValidationOutcome::Invalid;
+            result.issues.push_back("body_geometry.chest_curve out of bounds");
         }
 
         return result;

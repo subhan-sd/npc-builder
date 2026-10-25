@@ -114,7 +114,7 @@ PixelBuffer render_internal(
     float musc = app.body.muscularity;
     float post = app.body.posture;
 
-    BodyGeometry geo = override_geo ? *override_geo : compute_full_geometry(h, mass, musc, app.body.leg_ratio);
+    BodyGeometry geo = override_geo ? *override_geo : compute_full_geometry(h, mass, musc, app.body.leg_ratio, app.body.torso_ratio, app.body.arm_ratio);
 
     int total_height = geo.total_height;
 
@@ -315,8 +315,20 @@ PixelBuffer render_internal(
 
             // Subtle organic markers
             if (cmd.direction == Direction::South) {
-                // Pectoral underline: 1 dot under each peck
-                if (y == torso_h * 38 / 100 && musc > 0.45f && cur_w >= 8) {
+                // Pectoral / Chest underline:
+                if (geo.chest_curve > 0) {
+                    // Pronounced chest contour for female morphology
+                    if (y == torso_h * 38 / 100 && cur_w >= 8) {
+                        buf.set_pixel(cx - 2 + spine_offset, py, skin.shadow);
+                        buf.set_pixel(cx - 1 + spine_offset, py, skin.highlight);
+                        buf.set_pixel(cx + 1 + spine_offset, py, skin.highlight);
+                        buf.set_pixel(cx + 2 + spine_offset, py, skin.shadow);
+                    } else if (y == torso_h * 42 / 100 && cur_w >= 8 && geo.chest_curve >= 2) {
+                        buf.set_pixel(cx - 2 + spine_offset, py, skin.shadow);
+                        buf.set_pixel(cx + 2 + spine_offset, py, skin.shadow);
+                    }
+                } else if (y == torso_h * 38 / 100 && musc > 0.45f && cur_w >= 8) {
+                    // 1 dot under each peck for muscular male
                     buf.set_pixel(cx - 2 + spine_offset, py, skin.shadow);
                     buf.set_pixel(cx + 2 + spine_offset, py, skin.shadow);
                 }
@@ -330,6 +342,12 @@ PixelBuffer render_internal(
                 // Navel for Chin Jim
                 if (mass > 0.65f && y == torso_h * 65 / 100) {
                     buf.set_pixel(cx + spine_offset, py, skin.deep);
+                }
+            } else if ((cmd.direction == Direction::East || cmd.direction == Direction::West) && geo.chest_curve > 0) {
+                // Lateral chest contour in profile view
+                if (y >= torso_h * 35 / 100 && y <= torso_h * 42 / 100) {
+                    int front_x = (cmd.direction == Direction::East) ? (tx + cur_w - 1) : tx;
+                    buf.set_pixel(front_x, py, skin.highlight);
                 }
             }
         }

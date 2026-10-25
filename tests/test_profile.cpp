@@ -341,8 +341,29 @@ void test_c_api_pre_render_validation_and_errors() {
     std::cout << "[PASS] C API pre-render validation thoroughly verified.\n";
 }
 
+static void test_morphology_presets() {
+    auto slim = npc::AnatomyProfile::preset_slim();
+    auto avg = npc::AnatomyProfile::preset_average();
+    auto heavy = npc::AnatomyProfile::preset_heavy();
+    auto musc = npc::AnatomyProfile::preset_muscular();
+
+    // Verify properties and distinct silhouettes
+    auto geo_slim = npc::compute_full_geometry(slim.height, slim.body_mass, slim.muscularity, slim.leg_ratio);
+    auto geo_avg = npc::compute_full_geometry(avg.height, avg.body_mass, avg.muscularity, avg.leg_ratio);
+    auto geo_heavy = npc::compute_full_geometry(heavy.height, heavy.body_mass, heavy.muscularity, heavy.leg_ratio);
+    auto geo_musc = npc::compute_full_geometry(musc.height, musc.body_mass, musc.muscularity, musc.leg_ratio);
+
+    TEST_ASSERT(geo_slim.waist_w < geo_avg.waist_w);
+    TEST_ASSERT(geo_heavy.waist_w > geo_avg.waist_w);
+    TEST_ASSERT(geo_musc.shoulder_w > geo_avg.shoulder_w);
+    TEST_ASSERT(geo_musc.shoulder_w > geo_musc.waist_w); // V-taper
+
+    std::cout << "[PASS] Canonical morphology presets verified.\n";
+}
+
 int main() {
     std::cout << "Running CharacterProfile unit tests (v0.3.2)...\n";
+    test_morphology_presets();
     test_profile_default_and_validation();
     test_profile_enum_and_consistency_validation();
     test_profile_roundtrip_serialization();
