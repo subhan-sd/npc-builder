@@ -142,11 +142,21 @@ func _update_params() -> void:
 
 	if !current_profile.has("geometry_override"):
 		current_profile["geometry_override"] = {}
-	current_profile["geometry_override"]["chest_curve"] = int(chest_slider.value)
-	if chest_slider.value > 0 and gender_option.selected == 0:
-		gender_option.select(1)
-	elif chest_slider.value == 0 and gender_option.selected == 1:
-		gender_option.select(0)
+	var ovr = current_profile["geometry_override"]
+	ovr["chest_curve"] = int(chest_slider.value)
+
+	if chest_slider.value > 0:
+		if gender_option.selected == 0:
+			gender_option.select(1)
+		ovr["shoulder_w"] = -1
+		ovr["waist_w"] = -1
+		ovr["hips_w"] = 1
+	elif chest_slider.value == 0:
+		if gender_option.selected == 1:
+			gender_option.select(0)
+		ovr["shoulder_w"] = 0
+		ovr["waist_w"] = 0
+		ovr["hips_w"] = 0
 
 	_update_display()
 

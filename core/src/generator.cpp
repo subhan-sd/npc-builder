@@ -220,15 +220,43 @@ PixelBuffer render_internal(
             int lw = thigh_thick;
             int lx = leg_l_center - lw / 2;
 
-            if (y < knee_y) {
-                lw = thigh_thick;
-            } else if (y == knee_y) {
-                lw = std::max(2, thigh_thick - 1);
-            } else if (y <= calf_y) {
-                lw = thigh_thick + (musc > 0.4f || mass > 0.4f ? 1 : 0);
-                lx -= 1; // Lateral swell
+            if (geo.chest_curve > 0) {
+                // Organic outer hip-to-thigh curve matching flared pelvis (Ref: Image 1)
+                if (y == 0) {
+                    // Flush with pelvic width (hx) at hip junction, maintaining central crotch gap
+                    int outer_x = cx - std::max(hips_w, 10) / 2;
+                    int inner_x = cx - 1;
+                    lw = inner_x - outer_x + 1;
+                    lx = outer_x;
+                } else if (y == 1) {
+                    int outer_x = cx - std::max(hips_w, 10) / 2;
+                    int inner_x = cx - 1;
+                    lw = inner_x - outer_x;
+                    lx = outer_x;
+                } else if (y < knee_y) {
+                    lw = thigh_thick;
+                    lx = leg_l_center - lw / 2;
+                } else if (y == knee_y) {
+                    lw = std::max(2, thigh_thick - 1);
+                    lx = leg_l_center - lw / 2;
+                } else if (y <= calf_y) {
+                    lw = thigh_thick + (musc > 0.4f || mass > 0.4f ? 1 : 0);
+                    lx = leg_l_center - lw / 2 - 1; // Lateral swell
+                } else {
+                    lw = 2; // Ankle pinch
+                    lx = leg_l_center - lw / 2;
+                }
             } else {
-                lw = 2; // Ankle pinch
+                if (y < knee_y) {
+                    lw = thigh_thick;
+                } else if (y == knee_y) {
+                    lw = std::max(2, thigh_thick - 1);
+                } else if (y <= calf_y) {
+                    lw = thigh_thick + (musc > 0.4f || mass > 0.4f ? 1 : 0);
+                    lx -= 1; // Lateral swell
+                } else {
+                    lw = 2; // Ankle pinch
+                }
             }
 
             buf.draw_span(py, lx, lx + lw - 1, skin.base, skin.outline, skin.shadow);
@@ -254,14 +282,41 @@ PixelBuffer render_internal(
             int rw = thigh_thick;
             int rx = leg_r_center - rw / 2;
 
-            if (y < knee_y) {
-                rw = thigh_thick;
-            } else if (y == knee_y) {
-                rw = std::max(2, thigh_thick - 1);
-            } else if (y <= calf_y) {
-                rw = thigh_thick + (musc > 0.4f || mass > 0.4f ? 1 : 0);
+            if (geo.chest_curve > 0) {
+                // Organic outer hip-to-thigh curve matching flared pelvis (Ref: Image 1)
+                if (y == 0) {
+                    int inner_x = cx + 1;
+                    int outer_x = cx + (std::max(hips_w, 10) - 1) / 2;
+                    rw = outer_x - inner_x + 1;
+                    rx = inner_x;
+                } else if (y == 1) {
+                    int inner_x = cx + 1;
+                    int outer_x = cx + (std::max(hips_w, 10) - 1) / 2;
+                    rw = outer_x - inner_x;
+                    rx = inner_x;
+                } else if (y < knee_y) {
+                    rw = thigh_thick;
+                    rx = leg_r_center - rw / 2;
+                } else if (y == knee_y) {
+                    rw = std::max(2, thigh_thick - 1);
+                    rx = leg_r_center - rw / 2;
+                } else if (y <= calf_y) {
+                    rw = thigh_thick + (musc > 0.4f || mass > 0.4f ? 1 : 0);
+                    rx = leg_r_center - rw / 2;
+                } else {
+                    rw = 2;
+                    rx = leg_r_center - rw / 2;
+                }
             } else {
-                rw = 2;
+                if (y < knee_y) {
+                    rw = thigh_thick;
+                } else if (y == knee_y) {
+                    rw = std::max(2, thigh_thick - 1);
+                } else if (y <= calf_y) {
+                    rw = thigh_thick + (musc > 0.4f || mass > 0.4f ? 1 : 0);
+                } else {
+                    rw = 2;
+                }
             }
 
             buf.draw_span(py, rx, rx + rw - 1, skin.base, skin.outline, skin.shadow);
@@ -282,23 +337,53 @@ PixelBuffer render_internal(
             float progress = static_cast<float>(y) / static_cast<float>(torso_h);
 
             int cur_w;
-            if (y == 0) {
-                // Row 0: Trapezius slope (narrower than full shoulder)
-                cur_w = shoulder_w - 2;
-            } else if (progress < 0.45f) {
-                // Chest / Pectorals: reaches full shoulder at row 1, then gentle taper
-                float chest_p = (progress - 0.1f) / 0.35f;
-                cur_w = static_cast<int>(shoulder_w * (1.0f - std::max(0.0f, chest_p) * 0.15f));
-            } else if (progress < 0.78f) {
-                // Waist & Abdomen
-                float waist_p = (progress - 0.45f) / 0.33f;
-                int chest_bot = static_cast<int>(shoulder_w * 0.85f);
-                cur_w = static_cast<int>(chest_bot * (1.0f - waist_p) + waist_w * waist_p);
-                if (mass > 0.65f) cur_w += static_cast<int>((1.0f - std::abs(waist_p - 0.5f) * 2.0f) * 2.5f);
+            if (geo.chest_curve > 0) {
+                // Organic Hourglass & Bust Contour for Female Morphology (Ref: Image 1)
+                if (y == 0) {
+                    cur_w = shoulder_w - 2;
+                } else if (progress < 0.22f) {
+                    // Upper shoulder slope
+                    cur_w = shoulder_w;
+                } else if (progress < 0.44f) {
+                    // Bust mound expansion: breasts swell laterally based on chest_curve
+                    float bust_p = (progress - 0.22f) / 0.22f;
+                    float swell = std::sin(bust_p * 3.14159f);
+                    int bust_bonus = (geo.chest_curve >= 3) ? 2 : (geo.chest_curve >= 1 ? 1 : 0);
+                    cur_w = shoulder_w + static_cast<int>(std::round(swell * bust_bonus));
+                } else if (progress < 0.72f) {
+                    // Deep waist cinching (hourglass indentation creating visible gap to arms)
+                    float waist_p = (progress - 0.44f) / 0.28f;
+                    float waist_curve = (1.0f - std::cos(waist_p * 3.14159f)) * 0.5f;
+                    int target_waist = std::min(waist_w, 6);
+                    if (mass > 0.65f) target_waist += 1;
+                    cur_w = static_cast<int>(std::round(shoulder_w * (1.0f - waist_curve) + target_waist * waist_curve));
+                } else {
+                    // Smooth pelvic / hips flare expanding outwards
+                    float hip_p = (progress - 0.72f) / 0.28f;
+                    int target_waist = std::min(waist_w, 6);
+                    if (mass > 0.65f) target_waist += 1;
+                    int target_hips = std::max(hips_w, 10);
+                    cur_w = static_cast<int>(std::round(target_waist * (1.0f - hip_p) + target_hips * hip_p));
+                }
             } else {
-                // Pelvis / Hips flare
-                float hip_p = (progress - 0.78f) / 0.22f;
-                cur_w = static_cast<int>(waist_w * (1.0f - hip_p) + hips_w * hip_p);
+                if (y == 0) {
+                    // Row 0: Trapezius slope (narrower than full shoulder)
+                    cur_w = shoulder_w - 2;
+                } else if (progress < 0.45f) {
+                    // Chest / Pectorals: reaches full shoulder at row 1, then gentle taper
+                    float chest_p = (progress - 0.1f) / 0.35f;
+                    cur_w = static_cast<int>(shoulder_w * (1.0f - std::max(0.0f, chest_p) * 0.15f));
+                } else if (progress < 0.78f) {
+                    // Waist & Abdomen
+                    float waist_p = (progress - 0.45f) / 0.33f;
+                    int chest_bot = static_cast<int>(shoulder_w * 0.85f);
+                    cur_w = static_cast<int>(chest_bot * (1.0f - waist_p) + waist_w * waist_p);
+                    if (mass > 0.65f) cur_w += static_cast<int>((1.0f - std::abs(waist_p - 0.5f) * 2.0f) * 2.5f);
+                } else {
+                    // Pelvis / Hips flare
+                    float hip_p = (progress - 0.78f) / 0.22f;
+                    cur_w = static_cast<int>(waist_w * (1.0f - hip_p) + hips_w * hip_p);
+                }
             }
 
             int spine_offset = static_cast<int>(std::round(torso_lean_x * (1.0f - progress)));
@@ -317,22 +402,55 @@ PixelBuffer render_internal(
             if (cmd.direction == Direction::South) {
                 // Pectoral / Chest underline:
                 if (geo.chest_curve > 0) {
-                    // Pronounced chest contour for female morphology
-                    int chest_top_y = torso_h * 38 / 100;
-                    int chest_bot_y = chest_top_y + 1;
+                    // 3D Rounded Female Breast with Inverted-V Chevron Underbust (Ref: Image 4)
+                    int bust_center_y = torso_h * 32 / 100;
+                    int bust_bot_y = bust_center_y + 1;
+                    int bust_under_y = bust_bot_y + 1;
 
-                    if (y == chest_top_y && cur_w >= 8) {
-                        // Upper contour: lateral shadow, central highlights
+                    // Row 1: Upper mound with subtle accent highlight (not harsh blocks)
+                    if (y == bust_center_y && cur_w >= 8) {
+                        int r = (geo.chest_curve >= 3) ? 3 : 2;
+                        // Single soft highlight dot on upper mound of each breast
+                        buf.set_pixel(cx - r + spine_offset, py, skin.highlight);
+                        buf.set_pixel(cx + r + spine_offset, py, skin.highlight);
+
+                        // Subtle apex contour
+                        buf.set_pixel(cx - 1 + spine_offset, py, skin.base);
+                        buf.set_pixel(cx + 1 + spine_offset, py, skin.base);
+                    }
+                    // Row 2: Lower mound & cleavage apex
+                    else if (y == bust_bot_y && cur_w >= 8) {
+                        // Center sternum apex of the inverted-V cleft
+                        buf.set_pixel(cx + spine_offset, py, skin.shadow);
+
+                        // Base skin mounds
+                        buf.set_pixel(cx - 1 + spine_offset, py, skin.base);
+                        buf.set_pixel(cx + 1 + spine_offset, py, skin.base);
+
+                        // Soft nipple/apex accent dot on breast mound
                         buf.set_pixel(cx - 2 + spine_offset, py, skin.shadow);
-                        buf.set_pixel(cx - 1 + spine_offset, py, skin.highlight);
-                        buf.set_pixel(cx + 1 + spine_offset, py, skin.highlight);
                         buf.set_pixel(cx + 2 + spine_offset, py, skin.shadow);
-                    } else if (y == chest_bot_y && cur_w >= 8) {
-                        // Lower underline shadow giving 3D volume underneath highlights
-                        buf.set_pixel(cx - 2 + spine_offset, py, skin.shadow);
-                        buf.set_pixel(cx - 1 + spine_offset, py, skin.shadow);
-                        buf.set_pixel(cx + 1 + spine_offset, py, skin.shadow);
-                        buf.set_pixel(cx + 2 + spine_offset, py, skin.shadow);
+                    }
+                    // Row 3: Inverted-V underbust chevron contour (`\_/\_/`)
+                    else if (y == bust_under_y && cur_w >= 8 && geo.chest_curve >= 2) {
+                        int r = (geo.chest_curve >= 3) ? 3 : 2;
+                        // Left underbust curve: drops from apex at cx, sweeps outward
+                        for (int bx = cx - r; bx <= cx - 1; ++bx) {
+                            buf.set_pixel(bx + spine_offset, py, skin.shadow);
+                        }
+                        // Center sternum rises upward (V notch) -> base skin tone
+                        buf.set_pixel(cx + spine_offset, py, skin.base);
+
+                        // Right underbust curve
+                        for (int bx = cx + 1; bx <= cx + r; ++bx) {
+                            buf.set_pixel(bx + spine_offset, py, skin.shadow);
+                        }
+
+                        // For chest_curve >= 4: extra deep shadow crease
+                        if (geo.chest_curve >= 4) {
+                            buf.set_pixel(cx - 2 + spine_offset, py, skin.deep);
+                            buf.set_pixel(cx + 2 + spine_offset, py, skin.deep);
+                        }
                     }
                 } else if (y == torso_h * 38 / 100 && musc > 0.45f && cur_w >= 8) {
                     // 1 dot under each peck for muscular male
@@ -340,7 +458,7 @@ PixelBuffer render_internal(
                     buf.set_pixel(cx + 2 + spine_offset, py, skin.shadow);
                 }
                 // Abdominal midline seam
-                if (y >= torso_h * 48 / 100 && y <= torso_h * 72 / 100 && musc > 0.55f) {
+                if (y >= torso_h * 48 / 100 && y <= torso_h * 72 / 100 && musc > 0.55f && geo.chest_curve == 0) {
                     buf.set_pixel(cx + spine_offset, py, skin.shadow);
                     if (y % 3 == 0 && cur_w >= 7) {
                         buf.set_pixel(cx - 1 + spine_offset, py, skin.highlight);
@@ -351,14 +469,33 @@ PixelBuffer render_internal(
                     buf.set_pixel(cx + spine_offset, py, skin.deep);
                 }
             } else if ((cmd.direction == Direction::East || cmd.direction == Direction::West) && geo.chest_curve > 0) {
-                // Lateral chest contour in profile view
-                if (y >= torso_h * 35 / 100 && y <= torso_h * 42 / 100) {
+                // Lateral chest contour in profile view (side projection)
+                if (y >= torso_h * 30 / 100 && y <= torso_h * 42 / 100) {
                     int front_x = (cmd.direction == Direction::East) ? (tx + cur_w - 1) : tx;
                     buf.set_pixel(front_x, py, skin.highlight);
+                    if (geo.chest_curve >= 2) {
+                        int under_x = (cmd.direction == Direction::East) ? (front_x - 1) : (front_x + 1);
+                        buf.set_pixel(under_x, py, skin.shadow);
+                    }
                 }
             }
         }
-        buf.draw_span(hips_y - 1, cx - hips_w / 2, cx - hips_w / 2 + hips_w - 1, skin.shadow, skin.outline, skin.deep);
+        if (geo.chest_curve == 0) {
+            buf.draw_span(hips_y - 1, cx - hips_w / 2, cx - hips_w / 2 + hips_w - 1, skin.shadow, skin.outline, skin.deep);
+        } else {
+            // For female morphology (Ref: Image 1):
+            // Smooth pelvic flare with hip dimples / inguinal creases
+            int pelvic_w = std::max(hips_w, 10);
+            int hx = cx - pelvic_w / 2;
+            buf.draw_span(hips_y - 1, hx, hx + pelvic_w - 1, skin.base, skin.outline, skin.shadow);
+
+            // Inguinal creases / hip dimples (Ref: Image 1 pair of shadow dots)
+            buf.set_pixel(cx - 3, hips_y - 1, skin.shadow);
+            buf.set_pixel(cx + 3, hips_y - 1, skin.shadow);
+
+            // Subtle pubic/crotch notch at center
+            buf.set_pixel(cx, hips_y - 1, skin.shadow);
+        }
     }
 
     // 3. NECK & TRAPEZIUS
