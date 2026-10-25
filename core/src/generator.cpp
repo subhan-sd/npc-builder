@@ -99,7 +99,7 @@ static ColorRamp make_ramp(ColorRGBA base, ColorRGBA outline_tint = {73, 53, 47,
     return r;
 }
 
-PixelBuffer CharacterGenerator::render(
+PixelBuffer CharacterGenerator::render_internal(
     const HumanAppearance& app,
     const PhysicalConditionSet& cond,
     const AnimationCommand& cmd,
@@ -112,19 +112,18 @@ PixelBuffer CharacterGenerator::render(
     float musc = app.body.muscularity;
     float post = app.body.posture;
 
-    BodyGeometry geo = override_geo ? *override_geo : compute_geometry(mass, musc);
+    BodyGeometry geo = override_geo ? *override_geo : compute_full_geometry(h, mass, musc, app.body.leg_ratio);
 
-    int total_height = 36 + static_cast<int>(std::round(h * 6.0f));
+    int total_height = geo.total_height;
 
     // Ref 1 Proportions (Head: 8px, Torso: 11-13px, Legs: 14-16px)
     int head_w = 7;
     int head_h = 8;
     int neck_w = geo.neck_w;
 
-    int leg_len = 13 + static_cast<int>(std::round(app.body.leg_ratio * 4.0f));
-    int torso_h = total_height - head_h - 2 - leg_len;
-    if (torso_h < 11) torso_h = 11;
-    int arm_len = torso_h + 2;
+    int leg_len = geo.leg_len;
+    int torso_h = geo.torso_h;
+    int arm_len = geo.arm_len;
 
     // Kinematics & Animation offsets
     float t = cmd.anim_time * cmd.speed;

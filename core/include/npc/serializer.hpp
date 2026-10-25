@@ -309,16 +309,18 @@ public:
                 out_p.physical.conditions.amputations[i] = (amp != 0);
             }
 
-            // BodyGeometry (Format V4: 7 integer values)
-            if (!(ss >> out_p.body_geometry.shoulder_w
-                     >> out_p.body_geometry.waist_w
-                     >> out_p.body_geometry.hips_w
-                     >> out_p.body_geometry.thigh_thick
-                     >> out_p.body_geometry.neck_w
-                     >> out_p.body_geometry.arm_base_thick
-                     >> out_p.body_geometry.leg_gap)) {
+            // BodyGeometry (Format V4: 7 integer values) - read and discard to derive canonically from anatomy + overrides
+            int dummy_sw, dummy_ww, dummy_hw, dummy_tt, dummy_nw, dummy_at, dummy_lg;
+            if (!(ss >> dummy_sw
+                     >> dummy_ww
+                     >> dummy_hw
+                     >> dummy_tt
+                     >> dummy_nw
+                     >> dummy_at
+                     >> dummy_lg)) {
                 return false;
             }
+            out_p.body_geometry = out_p.derived_geometry();
 
             // Injuries
             size_t injury_count = 0;
