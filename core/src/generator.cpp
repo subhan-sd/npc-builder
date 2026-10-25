@@ -318,13 +318,20 @@ PixelBuffer render_internal(
                 // Pectoral / Chest underline:
                 if (geo.chest_curve > 0) {
                     // Pronounced chest contour for female morphology
-                    if (y == torso_h * 38 / 100 && cur_w >= 8) {
+                    int chest_top_y = torso_h * 38 / 100;
+                    int chest_bot_y = chest_top_y + 1;
+
+                    if (y == chest_top_y && cur_w >= 8) {
+                        // Upper contour: lateral shadow, central highlights
                         buf.set_pixel(cx - 2 + spine_offset, py, skin.shadow);
                         buf.set_pixel(cx - 1 + spine_offset, py, skin.highlight);
                         buf.set_pixel(cx + 1 + spine_offset, py, skin.highlight);
                         buf.set_pixel(cx + 2 + spine_offset, py, skin.shadow);
-                    } else if (y == torso_h * 42 / 100 && cur_w >= 8 && geo.chest_curve >= 2) {
+                    } else if (y == chest_bot_y && cur_w >= 8) {
+                        // Lower underline shadow giving 3D volume underneath highlights
                         buf.set_pixel(cx - 2 + spine_offset, py, skin.shadow);
+                        buf.set_pixel(cx - 1 + spine_offset, py, skin.shadow);
+                        buf.set_pixel(cx + 1 + spine_offset, py, skin.shadow);
                         buf.set_pixel(cx + 2 + spine_offset, py, skin.shadow);
                     }
                 } else if (y == torso_h * 38 / 100 && musc > 0.45f && cur_w >= 8) {

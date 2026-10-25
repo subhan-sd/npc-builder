@@ -94,18 +94,23 @@ func _on_seed_changed(val: float) -> void:
 	_update_display()
 
 func _on_gender_changed(idx: int) -> void:
+	if !current_profile.has("geometry_override"):
+		current_profile["geometry_override"] = {}
+	var ovr = current_profile["geometry_override"]
+
 	if idx == 1: # Female
 		chest_slider.set_value_no_signal(2.0)
-		# Female morphology baseline: slightly wider hips offset, slightly narrower shoulders
-		if !current_profile.has("geometry_override"):
-			current_profile["geometry_override"] = {}
-		current_profile["geometry_override"]["chest_curve"] = 2
-		current_profile["geometry_override"]["hips_w"] = 1
+		ovr["chest_curve"] = 2
+		ovr["shoulder_w"] = -1  # Bahu 1px lebih ramping
+		ovr["waist_w"] = -1     # Pinggang masuk 1px (siluet jam pasir)
+		ovr["hips_w"] = 1       # Pinggul 1px lebih lebar
 	else: # Male
 		chest_slider.set_value_no_signal(0.0)
-		if current_profile.has("geometry_override"):
-			current_profile["geometry_override"]["chest_curve"] = 0
-			current_profile["geometry_override"]["hips_w"] = 0
+		ovr["chest_curve"] = 0
+		ovr["shoulder_w"] = 0
+		ovr["waist_w"] = 0
+		ovr["hips_w"] = 0
+
 	_update_params()
 
 func _on_preset_changed(idx: int) -> void:
