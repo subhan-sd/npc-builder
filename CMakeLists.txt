@@ -87,6 +87,22 @@ target_link_libraries(test_profile PRIVATE npc_core npc_builder)
 target_include_directories(test_profile PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 add_test(NAME CharacterProfileTest COMMAND test_profile)
 
+# BodyGeometry Test (v0.3.3)
+add_executable(test_geometry
+    tests/test_geometry.cpp
+)
+target_link_libraries(test_geometry PRIVATE npc_core)
+target_include_directories(test_geometry PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+add_test(NAME BodyGeometryTest COMMAND test_geometry)
+
+# Transition & Monotonicity Test (v0.3.3)
+add_executable(test_transition
+    tests/test_transition.cpp
+)
+target_link_libraries(test_transition PRIVATE npc_core)
+target_include_directories(test_transition PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+add_test(NAME TransitionTest COMMAND test_transition)
+
 # Benchmark Utility
 add_executable(benchmark_render
     tests/benchmark_render.cpp

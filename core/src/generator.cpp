@@ -1,4 +1,5 @@
 #include "npc/generator.hpp"
+#include "npc/body_geometry.hpp"
 #include <cmath>
 #include <algorithm>
 
@@ -101,7 +102,8 @@ static ColorRamp make_ramp(ColorRGBA base, ColorRGBA outline_tint = {73, 53, 47,
 PixelBuffer CharacterGenerator::render(
     const HumanAppearance& app,
     const PhysicalConditionSet& cond,
-    const AnimationCommand& cmd
+    const AnimationCommand& cmd,
+    const BodyGeometry* override_geo
 ) {
     PixelBuffer buf(CANVAS_WIDTH, CANVAS_HEIGHT, {0, 0, 0, 0});
 
@@ -110,12 +112,14 @@ PixelBuffer CharacterGenerator::render(
     float musc = app.body.muscularity;
     float post = app.body.posture;
 
+    BodyGeometry geo = override_geo ? *override_geo : compute_geometry(mass, musc);
+
     int total_height = 36 + static_cast<int>(std::round(h * 6.0f));
 
     // Ref 1 Proportions (Head: 8px, Torso: 11-13px, Legs: 14-16px)
     int head_w = 7;
     int head_h = 8;
-    int neck_w = (musc > 0.6f || mass > 0.7f) ? 3 : 2;
+    int neck_w = geo.neck_w;
 
     int leg_len = 13 + static_cast<int>(std::round(app.body.leg_ratio * 4.0f));
     int torso_h = total_height - head_h - 2 - leg_len;
@@ -191,19 +195,14 @@ PixelBuffer CharacterGenerator::render(
     ColorRamp skin = make_ramp(app.face.skin_color);
     ColorRamp hair = make_ramp(app.face.hair_color);
 
-    // Anatomical profile widths (Ref 1: Trim, Gym, Slim, Chin Jim)
-    int shoulder_w = 9 + static_cast<int>(std::round(musc * 4.0f + mass * 1.5f));
-    int waist_w = 6 + static_cast<int>(std::round(mass * 4.5f + (1.0f - musc) * 1.0f));
-    if (musc > 0.5f && mass < 0.6f) {
-        waist_w = std::min(waist_w, shoulder_w - 4); // Distinct V-taper for Gym Jim
-    }
-    int hips_w = std::max(waist_w, 7 + static_cast<int>(std::round(mass * 3.5f)));
+    // Anatomical profile widths from BodyGeometry (Ref 1: Trim, Gym, Slim, Chin Jim)
+    int shoulder_w = geo.shoulder_w;
+    int waist_w = geo.waist_w;
+    int hips_w = geo.hips_w;
 
     // 1. LEGS & FEET RENDERING (thigh, knee, lateral calf curve, ankle pinch, foot platform)
-    int leg_gap = (musc > 0.6f || mass < 0.35f) ? 1 : 0;
-    int thigh_thick = 3;
-    if (mass > 0.7f && musc > 0.5f) thigh_thick = 4;
-    else if (mass < 0.3f && musc < 0.3f) thigh_thick = 2; // Slim Jim
+    int leg_gap = geo.leg_gap;
+    int thigh_thick = geo.thigh_thick;
 
     int leg_l_center = cx - 2 - leg_gap;
     int leg_r_center = cx + 2 + leg_gap;
@@ -341,7 +340,7 @@ PixelBuffer CharacterGenerator::render(
     buf.draw_span(neck_y, cx - neck_w / 2 + neck_offset, cx - neck_w / 2 + neck_w - 1 + neck_offset, skin.shadow, skin.outline, skin.shadow);
 
     // 4. ARMS & HANDS (Deltoid attaches at row 1, seamlessly aligned with shoulder slope)
-    int arm_base_thick = (musc > 0.65f || mass > 0.75f) ? 3 : 2;
+    int arm_base_thick = geo.arm_base_thick;
     int arm_y = torso_y + 1; // Starts at row 1 under the trapezius slope
     int arm_l_x = cx - shoulder_w / 2 - arm_base_thick + torso_lean_x;
     int arm_r_x = cx + shoulder_w / 2 + torso_lean_x;
@@ -486,17 +485,34 @@ PixelBuffer CharacterGenerator::render(
     for (const auto& inj : cond.injuries) {
         if (!inj.active && !inj.healed) continue;
 
+        // Skip injury if target body part is amputated
+        if (cond.is_amputated(inj.body_part)) continue;
+
         int part_x = cx - shoulder_w / 2, part_y = torso_y, part_w = shoulder_w, part_h = torso_h;
         if (inj.body_part == BodyPart::Head) {
             part_x = head_x; part_y = head_y; part_w = head_w; part_h = head_h;
         } else if (inj.body_part == BodyPart::LeftArm) {
-            part_x = arm_l_x; part_y = arm_y + arm_l_dy; part_w = arm_base_thick; part_h = arm_len;
+            part_x = arm_l_x; part_y = arm_y + arm_l_dy; part_w = arm_base_thick; part_h = arm_len - 2;
         } else if (inj.body_part == BodyPart::RightArm) {
-            part_x = arm_r_x; part_y = arm_y + arm_r_dy; part_w = arm_base_thick; part_h = arm_len;
+            part_x = arm_r_x; part_y = arm_y + arm_r_dy; part_w = arm_base_thick; part_h = arm_len - 2;
+        } else if (inj.body_part == BodyPart::LeftHand) {
+            part_x = arm_l_x; part_y = arm_y + arm_l_dy + arm_len - 2; part_w = arm_base_thick + 1; part_h = 2;
+        } else if (inj.body_part == BodyPart::RightHand) {
+            part_x = arm_r_x; part_y = arm_y + arm_r_dy + arm_len - 2; part_w = arm_base_thick + 1; part_h = 2;
         } else if (inj.body_part == BodyPart::LeftLeg) {
-            part_x = leg_l_center - thigh_thick / 2; part_y = hips_y + leg_l_dy; part_w = thigh_thick; part_h = leg_len;
+            part_x = leg_l_center - thigh_thick / 2; part_y = hips_y + leg_l_dy; part_w = thigh_thick; part_h = leg_len - 1;
         } else if (inj.body_part == BodyPart::RightLeg) {
-            part_x = leg_r_center - thigh_thick / 2; part_y = hips_y + leg_r_dy; part_w = thigh_thick; part_h = leg_len;
+            part_x = leg_r_center - thigh_thick / 2; part_y = hips_y + leg_r_dy; part_w = thigh_thick; part_h = leg_len - 1;
+        } else if (inj.body_part == BodyPart::LeftFoot) {
+            part_x = leg_l_center - thigh_thick / 2 - (cmd.direction == Direction::West ? 2 : 1);
+            part_y = hips_y + leg_len + leg_l_dy - 1;
+            part_w = thigh_thick + 2;
+            part_h = 1;
+        } else if (inj.body_part == BodyPart::RightFoot) {
+            part_x = leg_r_center - thigh_thick / 2;
+            part_y = hips_y + leg_len + leg_r_dy - 1;
+            part_w = thigh_thick + 2;
+            part_h = 1;
         }
 
         DeterministicRNG inj_rng(inj.visual_seed != 0 ? inj.visual_seed : static_cast<uint64_t>(inj.condition_id));

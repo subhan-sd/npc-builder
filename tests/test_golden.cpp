@@ -56,6 +56,40 @@ int main(int argc, char** argv) {
             inj.severity = 0.5f;
             inj.active = true;
             cond.injuries.push_back(inj);
+        } else if (scenario.rfind("part_inj_", 0) == 0) {
+            int p = std::stoi(scenario.substr(9));
+            npc::InjuryCondition inj;
+            inj.condition_id = static_cast<uint32_t>(900 + p * 10 + d);
+            inj.body_part = static_cast<npc::BodyPart>(p);
+            inj.type = npc::ConditionType::Cut;
+            inj.severity = 0.6f;
+            inj.active = true;
+            cond.injuries.push_back(inj);
+        } else if (scenario.rfind("combo_", 0) == 0) {
+            int p = std::stoi(scenario.substr(6));
+            if (p != static_cast<int>(npc::BodyPart::Head) && p != static_cast<int>(npc::BodyPart::Torso)) {
+                cond.set_amputated(static_cast<npc::BodyPart>(p), true);
+            }
+            npc::InjuryCondition inj;
+            inj.condition_id = static_cast<uint32_t>(1000 + p);
+            inj.body_part = npc::BodyPart::Torso;
+            inj.type = npc::ConditionType::Cut;
+            inj.severity = 0.5f;
+            inj.active = true;
+            cond.injuries.push_back(inj);
+        } else if (scenario.rfind("bound_", 0) == 0) {
+            int b = std::stoi(scenario.substr(6));
+            float boundaries[6][3] = {
+                {0.0f, 0.5f, 0.5f},
+                {1.0f, 0.5f, 0.5f},
+                {0.5f, 0.0f, 0.5f},
+                {0.5f, 1.0f, 0.5f},
+                {0.5f, 0.5f, 0.0f},
+                {0.5f, 0.5f, 1.0f}
+            };
+            app.body.height = boundaries[b][0];
+            app.body.body_mass = boundaries[b][1];
+            app.body.muscularity = boundaries[b][2];
         }
 
         npc::AnimationCommand cmd{
@@ -93,8 +127,8 @@ int main(int argc, char** argv) {
         tested_count++;
     }
 
-    if (tested_count != 7360) {
-        std::cerr << "[FAIL] Expected 7,360 combinations, tested " << tested_count << "\n";
+    if (tested_count < 7880) {
+        std::cerr << "[FAIL] Expected at least 7,880 combinations, tested " << tested_count << "\n";
         return 1;
     }
 

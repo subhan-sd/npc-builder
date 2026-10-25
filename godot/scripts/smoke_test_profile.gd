@@ -17,11 +17,15 @@ func _init() -> void:
 
 	# Test create_default_profile
 	var default_prof = gen.create_default_profile(42, 12345)
-	if default_prof.is_empty() or not default_prof.has("anatomy") or not default_prof.has("appearance"):
-		push_error("FAIL: create_default_profile returned malformed dictionary")
+	if default_prof.is_empty() or not default_prof.has("anatomy") or not default_prof.has("appearance") or not default_prof.has("body_geometry"):
+		push_error("FAIL: create_default_profile returned malformed dictionary (missing body_geometry)")
 		quit(1)
 		return
-	print("create_default_profile OK: npc_id =", default_prof.generation.npc_id)
+	if default_prof["body_geometry"]["shoulder_w"] <= 0:
+		push_error("FAIL: body_geometry.shoulder_w invalid")
+		quit(1)
+		return
+	print("create_default_profile OK: npc_id =", default_prof.generation.npc_id, "shoulder_w =", default_prof.body_geometry.shoulder_w)
 
 	# Test validate_profile
 	var val_res = gen.validate_profile(default_prof)

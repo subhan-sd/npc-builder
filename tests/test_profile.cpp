@@ -58,6 +58,15 @@ void test_profile_enum_and_consistency_validation() {
     std::cout << "Testing ProfileValidator facial enums, amputation consistency, and injury rules...\n";
     auto p = npc::CharacterProfile::create_default(1, 12345);
 
+    // BodyGeometry validation bounds
+    p.body_geometry.shoulder_w = 99;
+    TEST_ASSERT(!npc::ProfileValidator::validate(p).is_ok());
+    p.body_geometry.shoulder_w = 11;
+
+    p.body_geometry.thigh_thick = 9;
+    TEST_ASSERT(!npc::ProfileValidator::validate(p).is_ok());
+    p.body_geometry.thigh_thick = 3;
+
     // Appearance enums
     p.appearance.hair_style = 4;
     TEST_ASSERT(!npc::ProfileValidator::validate(p).is_ok());
@@ -201,6 +210,15 @@ void test_profile_legacy_v2_migration() {
     TEST_ASSERT(p.physical.conditions.injuries.empty());
 
     std::cout << "[PASS] Legacy V2 string safely migrated to valid CharacterProfile.\n";
+
+    // Test Format V3 migration into CharacterProfile V4
+    std::string v3_data = "3 1 10 54321 1 0.5 0.5 0.5 0.0 0.5 0.5 0.5 0.5 0 1 0 0 0 0 225 185 150 255 40 30 20 255 50 40 30 255 60 90 140 255 45 50 60 255 0 0 0 0 0 0 0 0 0 0 0";
+    npc::CharacterProfile p_v3;
+    bool ok_v3 = npc::Serializer::deserialize_profile(v3_data, p_v3);
+    TEST_ASSERT(ok_v3);
+    TEST_ASSERT_EQ(p_v3.schema_version, 2u);
+    TEST_ASSERT(p_v3.body_geometry.shoulder_w > 0);
+    std::cout << "[PASS] Legacy Format V3 string safely migrated to CharacterProfile V4 with auto-computed geometry.\n";
 }
 
 void test_c_api_profile_functions() {
@@ -212,6 +230,15 @@ void test_c_api_profile_functions() {
     TEST_ASSERT_EQ(err, NPC_SUCCESS);
     TEST_ASSERT_EQ(c_prof.npc_id, 10u);
     TEST_ASSERT_EQ(c_prof.seed, 54321u);
+    TEST_ASSERT_EQ(c_prof.api_version, 4u);
+    TEST_ASSERT_EQ(c_prof.schema_version, 2u);
+    TEST_ASSERT(c_prof.geo_shoulder_w > 0);
+    TEST_ASSERT(c_prof.geo_waist_w > 0);
+
+    // Old struct size rejected with NPC_ERR_VERSION_MISMATCH
+    CNpcProfile old_sized_prof{};
+    old_sized_prof.struct_size = sizeof(CNpcProfile) - 14; // missing 7x int16_t
+    TEST_ASSERT_EQ(npc_profile_validate(&old_sized_prof), NPC_ERR_VERSION_MISMATCH);
 
     // Validate valid C profile
     TEST_ASSERT_EQ(npc_profile_validate(&c_prof), NPC_SUCCESS);
