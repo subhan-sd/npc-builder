@@ -54,6 +54,95 @@ void test_profile_default_and_validation() {
     std::cout << "[PASS] Default profile creation, validation, and normalization verified.\n";
 }
 
+void test_profile_enum_and_consistency_validation() {
+    std::cout << "Testing ProfileValidator facial enums, amputation consistency, and injury rules...\n";
+    auto p = npc::CharacterProfile::create_default(1, 12345);
+
+    // Appearance enums
+    p.appearance.hair_style = 4;
+    TEST_ASSERT(!npc::ProfileValidator::validate(p).is_ok());
+    p.appearance.hair_style = 0;
+
+    p.appearance.eye_shape = 3;
+    TEST_ASSERT(!npc::ProfileValidator::validate(p).is_ok());
+    p.appearance.eye_shape = 0;
+
+    p.appearance.eye_spacing = 0;
+    TEST_ASSERT(!npc::ProfileValidator::validate(p).is_ok());
+    p.appearance.eye_spacing = 3;
+    TEST_ASSERT(!npc::ProfileValidator::validate(p).is_ok());
+    p.appearance.eye_spacing = 1;
+
+    p.appearance.nose_shape = 2;
+    TEST_ASSERT(!npc::ProfileValidator::validate(p).is_ok());
+    p.appearance.nose_shape = 0;
+
+    p.appearance.mouth_shape = 2;
+    TEST_ASSERT(!npc::ProfileValidator::validate(p).is_ok());
+    p.appearance.mouth_shape = 0;
+
+    p.appearance.expression = static_cast<npc::Expression>(99);
+    TEST_ASSERT(!npc::ProfileValidator::validate(p).is_ok());
+    p.appearance.expression = npc::Expression::Neutral;
+
+    // Amputation consistency: Head and Torso cannot be amputated
+    p.physical.conditions.amputations[static_cast<size_t>(npc::BodyPart::Head)] = true;
+    TEST_ASSERT(!npc::ProfileValidator::validate(p).is_ok());
+    p.physical.conditions.amputations[static_cast<size_t>(npc::BodyPart::Head)] = false;
+
+    p.physical.conditions.amputations[static_cast<size_t>(npc::BodyPart::Torso)] = true;
+    TEST_ASSERT(!npc::ProfileValidator::validate(p).is_ok());
+    p.physical.conditions.amputations[static_cast<size_t>(npc::BodyPart::Torso)] = false;
+
+    // Cascade violations: arm without hand, leg without foot
+    p.physical.conditions.amputations[static_cast<size_t>(npc::BodyPart::LeftArm)] = true;
+    p.physical.conditions.amputations[static_cast<size_t>(npc::BodyPart::LeftHand)] = false;
+    TEST_ASSERT(!npc::ProfileValidator::validate(p).is_ok());
+
+    p.physical.conditions.amputations[static_cast<size_t>(npc::BodyPart::LeftHand)] = true;
+    TEST_ASSERT(npc::ProfileValidator::validate(p).is_ok());
+
+    p.physical.conditions.amputations[static_cast<size_t>(npc::BodyPart::RightLeg)] = true;
+    p.physical.conditions.amputations[static_cast<size_t>(npc::BodyPart::RightFoot)] = false;
+    TEST_ASSERT(!npc::ProfileValidator::validate(p).is_ok());
+
+    p.physical.conditions.amputations[static_cast<size_t>(npc::BodyPart::RightFoot)] = true;
+    TEST_ASSERT(npc::ProfileValidator::validate(p).is_ok());
+
+    // Injury on amputated body part
+    npc::InjuryCondition inj;
+    inj.condition_id = 1;
+    inj.body_part = npc::BodyPart::LeftArm; // LeftArm is amputated!
+    inj.type = npc::ConditionType::Cut;
+    inj.severity = 0.5f;
+    p.physical.conditions.injuries.push_back(inj);
+    TEST_ASSERT(!npc::ProfileValidator::validate(p).is_ok());
+
+    // Move injury to valid part
+    p.physical.conditions.injuries[0].body_part = npc::BodyPart::Torso;
+    TEST_ASSERT(npc::ProfileValidator::validate(p).is_ok());
+
+    // Normalization repairs cascade and removes injury on amputated part
+    auto bad_p = npc::CharacterProfile::create_default(2, 54321);
+    bad_p.appearance.hair_style = 9;
+    bad_p.appearance.eye_spacing = 5;
+    bad_p.physical.conditions.amputations[static_cast<size_t>(npc::BodyPart::Head)] = true;
+    bad_p.physical.conditions.amputations[static_cast<size_t>(npc::BodyPart::RightArm)] = true; // RightHand false
+    bad_p.physical.conditions.injuries.push_back({10, npc::BodyPart::RightArm, npc::ConditionType::Burn, 1.5f, 0, true, false});
+
+    auto norm_res = npc::ProfileValidator::normalize(bad_p);
+    TEST_ASSERT(norm_res.is_ok());
+    TEST_ASSERT(norm_res.outcome == npc::ValidationOutcome::ValidNormalized);
+    TEST_ASSERT_EQ(bad_p.appearance.hair_style, 3);
+    TEST_ASSERT_EQ(bad_p.appearance.eye_spacing, 2);
+    TEST_ASSERT(!bad_p.physical.conditions.is_amputated(npc::BodyPart::Head));
+    TEST_ASSERT(bad_p.physical.conditions.is_amputated(npc::BodyPart::RightArm));
+    TEST_ASSERT(bad_p.physical.conditions.is_amputated(npc::BodyPart::RightHand));
+    TEST_ASSERT(bad_p.physical.conditions.injuries.empty()); // Removed impossible injury
+
+    std::cout << "[PASS] Facial enums, amputation consistency, and injury rules validated.\n";
+}
+
 void test_profile_roundtrip_serialization() {
     std::cout << "Testing CharacterProfile V3 serialization round-trip for 100 seeds...\n";
 
@@ -151,12 +240,79 @@ void test_c_api_profile_functions() {
     std::cout << "[PASS] C API CharacterProfile functions pass with pixel-exact parity.\n";
 }
 
+void test_c_api_pre_render_validation_and_errors() {
+    std::cout << "Testing C API pre-render validation hardening (FR-03)...\n";
+    CNpcProfile c_prof{};
+    c_prof.struct_size = sizeof(CNpcProfile);
+    int err = npc_profile_create_default(1, 12345, &c_prof);
+    TEST_ASSERT_EQ(err, NPC_SUCCESS);
+
+    std::vector<uint8_t> buffer(32 * 48 * 4, 0xAA); // Fill sentinel
+    const std::vector<uint8_t> sentinel(32 * 48 * 4, 0xAA);
+
+    // 1. Invalid anatomy (NaN) -> rejected before render, buffer untouched
+    c_prof.height = std::numeric_limits<float>::quiet_NaN();
+    err = npc_profile_render(&c_prof, nullptr, 0, 0, 0, 0.0f, buffer.data(), buffer.size());
+    TEST_ASSERT_EQ(err, NPC_ERR_VALIDATION_FAIL);
+    TEST_ASSERT(buffer == sentinel);
+    c_prof.height = 0.5f;
+
+    // 2. Invalid facial enum (hair_style = 9) -> rejected before render
+    c_prof.hair_style = 9;
+    err = npc_profile_render(&c_prof, nullptr, 0, 0, 0, 0.0f, buffer.data(), buffer.size());
+    TEST_ASSERT_EQ(err, NPC_ERR_VALIDATION_FAIL);
+    TEST_ASSERT(buffer == sentinel);
+    c_prof.hair_style = 0;
+
+    // 3. Invalid amputation (Head amputated) -> rejected before render
+    c_prof.amputations_mask[static_cast<size_t>(npc::BodyPart::Head)] = 1;
+    err = npc_profile_render(&c_prof, nullptr, 0, 0, 0, 0.0f, buffer.data(), buffer.size());
+    TEST_ASSERT_EQ(err, NPC_ERR_VALIDATION_FAIL);
+    TEST_ASSERT(buffer == sentinel);
+    c_prof.amputations_mask[static_cast<size_t>(npc::BodyPart::Head)] = 0;
+
+    // 4. Invalid amputation cascade (LeftArm amputated, LeftHand not) -> rejected
+    c_prof.amputations_mask[static_cast<size_t>(npc::BodyPart::LeftArm)] = 1;
+    c_prof.amputations_mask[static_cast<size_t>(npc::BodyPart::LeftHand)] = 0;
+    err = npc_profile_render(&c_prof, nullptr, 0, 0, 0, 0.0f, buffer.data(), buffer.size());
+    TEST_ASSERT_EQ(err, NPC_ERR_VALIDATION_FAIL);
+    TEST_ASSERT(buffer == sentinel);
+
+    // Fix cascade
+    c_prof.amputations_mask[static_cast<size_t>(npc::BodyPart::LeftHand)] = 1;
+
+    // 5. Injury on amputated limb -> rejected
+    CNpcInjury inj{};
+    inj.condition_id = 99;
+    inj.body_part = static_cast<uint8_t>(npc::BodyPart::LeftArm);
+    inj.type = static_cast<uint8_t>(npc::ConditionType::Cut);
+    inj.severity = 0.5f;
+    inj.active = 1;
+    err = npc_profile_render(&c_prof, &inj, 1, 0, 0, 0.0f, buffer.data(), buffer.size());
+    TEST_ASSERT_EQ(err, NPC_ERR_VALIDATION_FAIL);
+    TEST_ASSERT(buffer == sentinel);
+
+    // 6. Null injuries pointer with count > 0 -> NPC_ERR_INVALID_ARGUMENT
+    err = npc_profile_render(&c_prof, nullptr, 5, 0, 0, 0.0f, buffer.data(), buffer.size());
+    TEST_ASSERT_EQ(err, NPC_ERR_INVALID_ARGUMENT);
+
+    // 7. Move injury to non-amputated Torso -> success, buffer modified
+    inj.body_part = static_cast<uint8_t>(npc::BodyPart::Torso);
+    err = npc_profile_render(&c_prof, &inj, 1, 0, 0, 0.0f, buffer.data(), buffer.size());
+    TEST_ASSERT_EQ(err, NPC_SUCCESS);
+    TEST_ASSERT(buffer != sentinel);
+
+    std::cout << "[PASS] C API pre-render validation thoroughly verified.\n";
+}
+
 int main() {
-    std::cout << "Running CharacterProfile unit tests (v0.3.1)...\n";
+    std::cout << "Running CharacterProfile unit tests (v0.3.2)...\n";
     test_profile_default_and_validation();
+    test_profile_enum_and_consistency_validation();
     test_profile_roundtrip_serialization();
     test_profile_legacy_v2_migration();
     test_c_api_profile_functions();
+    test_c_api_pre_render_validation_and_errors();
 
     if (npc::test::failure_count() > 0) {
         std::cerr << "Profile tests FAILED with " << npc::test::failure_count() << " error(s).\n";

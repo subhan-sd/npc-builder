@@ -11,9 +11,8 @@ func _init() -> void:
 	print("NPCGenerator instantiated successfully.")
 
 	if not gen.has_method("create_default_profile"):
-		print("[NOTICE] Running with existing Windows DLL (v0.2.3 binary). Verified class instantiation.")
-		print("--- GODOT PROFILE SMOKE TEST BASELINE VERIFIED ---")
-		quit(0)
+		push_error("FAIL: Loaded extension binary does not contain create_default_profile! Outdated or missing v0.3.x binary.")
+		quit(1)
 		return
 
 	# Test create_default_profile
@@ -30,7 +29,17 @@ func _init() -> void:
 		push_error("FAIL: default profile failed validation: " + str(val_res.get("issues", [])))
 		quit(1)
 		return
-	print("validate_profile OK.")
+	print("validate_profile OK for valid profile.")
+
+	# Test validate_profile rejection of invalid profile
+	var invalid_prof = default_prof.duplicate(true)
+	invalid_prof["appearance"]["hair_style"] = 99
+	var invalid_val = gen.validate_profile(invalid_prof)
+	if invalid_val.get("is_valid", true):
+		push_error("FAIL: validate_profile accepted invalid hair_style 99")
+		quit(1)
+		return
+	print("validate_profile correctly rejected invalid hair_style.")
 
 	# Test serialize & deserialize profile
 	var serialized = gen.serialize_profile(default_prof)
@@ -45,13 +54,21 @@ func _init() -> void:
 		return
 	print("serialize_profile and deserialize_profile roundtrip OK.")
 
-	# Test render_profile
+	# Test render_profile valid
 	var img = gen.render_profile(default_prof, 0, 0, 0.0)
 	if img == null or img.get_width() != 32 or img.get_height() != 48:
 		push_error("FAIL: render_profile returned null or wrong dimensions")
 		quit(1)
 		return
 	print("render_profile OK: dimensions =", img.get_width(), "x", img.get_height())
+
+	# Test render_profile rejects invalid profile
+	var rejected_img = gen.render_profile(invalid_prof, 0, 0, 0.0)
+	if rejected_img != null:
+		push_error("FAIL: render_profile rendered invalid profile instead of returning null")
+		quit(1)
+		return
+	print("render_profile correctly rejected invalid profile before rendering.")
 
 	print("--- ALL GODOT PROFILE SMOKE TESTS PASSED ---")
 	quit(0)

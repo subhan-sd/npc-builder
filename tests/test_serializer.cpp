@@ -67,6 +67,10 @@ void test_serializer_corrupt_data_rejected() {
     std::string invalid_color = "2 1 1 123 0.5 0.5 0.5 0.0 0.5 0.5 0.5 0.5 0 1 0 0 0 0 999 150 100 255 40 30 20 255 50 40 30 255 60 90 140 255 45 50 60 255";
     TEST_ASSERT(!npc::Serializer::deserialize(invalid_color, app));
 
+    // Invalid facial shapes
+    std::string invalid_hair = "2 1 1 123 0.5 0.5 0.5 0.0 0.5 0.5 0.5 0.5 0 1 0 0 99 0 200 150 100 255 40 30 20 255 50 40 30 255 60 90 140 255 45 50 60 255";
+    TEST_ASSERT(!npc::Serializer::deserialize(invalid_hair, app));
+
     std::cout << "[PASS] Corrupted and out-of-bounds serialized strings rejected safely.\n";
 }
 

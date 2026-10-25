@@ -94,7 +94,7 @@ add_executable(benchmark_render
 target_link_libraries(benchmark_render PRIVATE npc_core)
 target_include_directories(benchmark_render PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 
-# GDExtension target (optional toggle if godot-cpp is present)
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/extension/CMakeLists.txt")
+# GDExtension target (compiled when godot-cpp submodule is present)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/extension/CMakeLists.txt" AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/extension/godot-cpp/CMakeLists.txt")
     add_subdirectory(extension)
 endif()
