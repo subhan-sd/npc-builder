@@ -1,28 +1,28 @@
-# Refaktor Geometri Tubuh, Perbaikan Cedera-Amputasi, Perluasan Hasil Acuan, dan Kebijakan Versi
+# Refaktor Geometri Tubuh, Kontrak Kompatibilitas, Kebijakan Versi, dan Hasil Acuan
 
-Proyek: Living World · Modul: Pembuat Karakter (repositori `npc-builder`) · Tanggal: 2026-10-25 · Versi: 1
+Proyek: Living World · Modul: Pembuat Karakter (repositori `npc-builder`) · Tanggal: 2026-10-25 · Versi: 2
 
 ---
 
 ## 1. Ringkasan
 
-Fungsi penggambaran karakter di `core/src/generator.cpp` menghitung geometri tubuh seperti lebar bahu, pinggang, pinggul secara tersebar di dalam satu fungsi sepanjang 423 baris. Tahap cedera memakai ulang nilai tersebut melalui variabel lokal tanpa memeriksa status amputasi. Matriks hasil acuan hanya mencakup cedera pada badan dan amputasi tanpa cedera, sehingga kombinasi keduanya tidak teruji. Tiga nomor versi lintas lapisan belum memiliki kebijakan kenaikan yang jelas.
+Fungsi penggambaran karakter di `core/src/generator.cpp` menghitung geometri tubuh seperti lebar bahu, pinggang, dan pinggul secara tersebar di dalam satu fungsi sepanjang 423 baris. Kondisi ini menyulitkan penambahan variasi proporsi tubuh dan busana modular tanpa memicu regresi visual. Matriks hasil acuan sebelumnya hanya mencakup 7.360 kombinasi dengan pengujian cedera yang terbatas pada bagian tubuh badan dan arah hadap selatan. Tiga nomor versi lintas lapisan belum memiliki batas tanggung jawab serta kontrak kompatibilitas yang terdefinisi dengan tegas.
 
-Solusinya adalah mengekstrak geometri tubuh ke dalam struktur data bersama `BodyGeometry` yang dihitung sekali dan dipakai oleh seluruh tahap penggambaran, memperbaiki loop cedera agar memeriksa status amputasi, memperluas matriks hasil acuan, dan menetapkan kebijakan versi lintas lapisan. Hasil yang diharapkan berupa kode penggambaran yang modular, cedera pada bagian yang diamputasi tidak digambar, cakupan pengujian meningkat dari 7.360 menjadi lebih dari 7.800 kombinasi, dan setiap perubahan kontrak lintas lapisan memiliki aturan kenaikan versi yang terdokumentasi.
+Solusinya adalah merestrukturisasi geometri tubuh ke dalam struktur data bersama `BodyGeometry` yang dihitung secara deterministik oleh fungsi murni `compute_geometry()`, mendokumentasikan batas kontrak kompatibilitas terhadap implementasi dasar secara eksplisit, memperluas matriks hasil acuan menjadi 7.884 kombinasi, dan menetapkan kebijakan versi lintas lapisan secara terkoordinasi. Hasil yang diharapkan berupa pemisahan domain geometri yang bersih, perlindungan menyeluruh terhadap regresi visual, serta aturan migrasi data lama yang aman dari pemotongan tipe data.
 
 ---
 
 ## 2. Latar belakang
 
-Versi `v0.3.2` menyelesaikan pengerasan validasi profil, integritas serialisasi, dan keandalan integrasi berkelanjutan. Dokumen tanggapan koreksi rencana v0.3.3 pada `docs/V0.3/Tanggapan atas Koreksi Rencana v0.3.3 Kompatibilitas, Cakupan Hasil Acuan, Versi, dan Kriteria Transisi.md` mengidentifikasi lima masalah:
+Versi `v0.3.2` menyelesaikan pengerasan validasi profil karakter, serialisasi, dan keandalan integrasi berkelanjutan pada commit `a7c90dd`. Dokumen evaluasi teknis pada `docs/V0.3/Tanggapan atas Koreksi Rencana v0.3.3 Kompatibilitas, Cakupan Hasil Acuan, Versi, dan Kriteria Transisi.md` mengidentifikasi bahwa rencana pemisahan geometri tubuh memerlukan penegasan kontrak kompatibilitas:
 
-1. Kompatibilitas cedera dan amputasi tidak didapat otomatis dari geometri.
-2. Cakupan hasil acuan belum mencakup cedera pada seluruh bagian tubuh dan kombinasi cedera-amputasi.
-3. Tiga nomor versi tidak boleh dinaikkan secara otomatis tanpa analisis dampak.
-4. Kriteria transisi geometri mengenai kemonotonan dan ambang diskret belum presisi.
-5. Fungsi `compute_geometry()` harus kecil dan hanya menyimpan nilai dasar.
+1. Kompatibilitas perilaku cedera dan amputasi tidak dapat diasumsikan terjadi secara otomatis dari struktur geometri.
+2. Matriks hasil acuan lama memiliki celah pengujian pada cedera di luar bagian tubuh badan, arah hadap non-selatan, dan kombinasi kondisi fisik.
+3. Empat nomor versi sistem memiliki tingkat kekakuan biner yang berbeda dan tidak boleh dinaikkan tanpa analisis pemanggil.
+4. Kriteria kemonotonan geometri harus dibatasi pada pasangan parameter yang memang secara matematis dirancang monoton.
+5. Struktur `BodyGeometry` harus berukuran ringkas dan hanya menyimpan nilai dasar lintas tahap tanpa menduplikasi nilai turunan per baris piksel.
 
-Pekerjaan ini menjadi prasyarat bagi fitur mendatang seperti profil anatomi wanita, pakaian modular, dan ras fantasi, yang semuanya memerlukan geometri tubuh yang terstruktur dan terpisah dari logika penggambaran.
+Pembaruan v0.3.3 menjadi landasan bagi simulasi Living World sebelum penambahan proporsi anatomi wanita, variasi wajah lanjutan, dan lapisan pakaian dinamis pada rilis berikutnya.
 
 ---
 
@@ -30,20 +30,21 @@ Pekerjaan ini menjadi prasyarat bagi fitur mendatang seperti profil anatomi wani
 
 ### Tujuan
 
-- Mengekstrak 7 nilai dasar geometri tubuh ke dalam struktur `BodyGeometry` yang dihitung dari parameter anatomi.
-- Menyimpan `BodyGeometry` ke dalam `CharacterProfile` dan format serialisasi baru.
-- Memperbaiki loop cedera agar cedera pada bagian tubuh yang diamputasi tidak digambar.
-- Memperluas matriks hasil acuan dengan kasus cedera pada seluruh bagian tubuh, kombinasi cedera-amputasi, dan profil batas.
-- Menetapkan kebijakan kenaikan versi untuk `NPC_API_VERSION`, `PROFILE_SCHEMA_VERSION`, dan `PROFILE_FORMAT_VERSION`.
-- Mendokumentasikan 12 ambang diskret dan tabel kemonotonan per pasangan parameter-wilayah.
+- Mengekstrak 7 nilai dasar geometri tubuh ke dalam struktur data `BodyGeometry` melalui fungsi deterministik `compute_geometry()`.
+- Menjadikan parameter anatomi sebagai sumber kebenaran tunggal geometri dengan aturan sinkronisasi yang jelas di seluruh lapisan.
+- Mempertahankan 7.360 hasil acuan dasar lama secara identik tanpa pergeseran satu piksel pun.
+- Memperluas cakupan hasil acuan menjadi 7.884 kombinasi untuk memverifikasi seluruh 10 bagian tubuh dalam 4 arah hadap, kombinasi kondisi fisik, dan nilai parameter batas.
+- Memisahkan perbaikan perilaku visual yang disengaja ke dalam kategori tersendiri dengan kriteria pengujian mandiri.
+- Menetapkan kebijakan versi lintas lapisan untuk antarmuka pemrograman C, skema profil, dan format serialisasi beserta perlindungan migrasi data lama dari pemotongan tipe data.
+- Menguji 12 ambang batas diskretisasi geometri dan memverifikasi tabel kemonotonan parameter.
 
 ### Bukan-tujuan
 
-- Mengubah rumus geometri yang sudah ada: lebar bahu, pinggang, dan seterusnya tetap sama.
-- Menambah variasi anatomi wanita.
-- Menambah pakaian atau ras fantasi.
-- Mengubah format serialisasi lama V2: `SERIALIZER_FORMAT_VERSION` tetap 2.
-- Mengubah kanvas penggambaran dari 32 × 48 piksel.
+- Mengubah rumus dasar lebar bahu, pinggang, pinggul, ketebalan paha, dan ketebalan lengan yang sudah ada.
+- Menambahkan variasi anatomi tubuh wanita pada rilis ini.
+- Menambahkan sistem pakaian modular atau ras non-manusia.
+- Mengubah format serialisasi lama format versi 2 untuk struktur penampilan manusia lama.
+- Mengubah dimensi kanvas penggambaran dari standar 32 × 48 piksel.
 
 ---
 
@@ -51,537 +52,273 @@ Pekerjaan ini menjadi prasyarat bagi fitur mendatang seperti profil anatomi wani
 
 ### Termasuk
 
-- Struktur data `BodyGeometry` dan fungsi `compute_geometry()` di Inti Pembuat Karakter.
-- Perubahan `CharacterProfile` dengan skema versi 2 untuk menyimpan `BodyGeometry`.
-- Format serialisasi V4 dengan `PROFILE_FORMAT_VERSION` bernilai 4 dengan migrasi otomatis dari V3.
-- Struktur biner `CNpcProfile` yang diperluas dengan field `BodyGeometry`, dan kenaikan `NPC_API_VERSION` ke 4.
-- Perluasan Godot: fungsi `profile_to_dict` dan `dict_to_profile` menyertakan `BodyGeometry`.
-- Perbaikan loop cedera di `CharacterGenerator::render()` untuk memeriksa `is_amputated()`.
-- Regenerasi `tests/golden/matriks-acuan.txt` dan perluasan cakupan.
-- Target tes baru: `test_geometry.cpp` dan `test_transition.cpp`.
-- Pembanding referensi sementara di target tes terpisah untuk verifikasi piksel demi piksel selama refaktor.
-- Pembaruan skrip uji Godot untuk memverifikasi field `BodyGeometry` di kamus profil.
+- Struktur data `BodyGeometry` dan fungsi murni `compute_geometry()` pada berkas `core/include/npc/body_geometry.hpp`.
+- Integrasi `BodyGeometry` ke dalam `CharacterProfile` dengan nomor skema profil versi 2 pada `core/include/npc/profile.hpp`.
+- Format serialisasi profil versi 4 dengan kemampuan membaca data lama versi 3 dan versi 2 pada `core/include/npc/serializer.hpp`.
+- Perluasan struktur biner `CNpcProfile` dengan 7 field geometri dan kenaikan versi antarmuka C ke versi 4 pada `core/include/npc/c_api.h` dan `core/src/c_api.cpp`.
+- Integrasi subdomain `body_geometry` pada lapisan Perluasan Godot di `extension/src/npc_generator.cpp`.
+- Pengujian geometri, transisi ambang batas, serialisasi, antarmuka C, dan hasil acuan pada folder `tests/`.
+- Penegasan kontrak kompatibilitas dan pemisahan kategori pengujian.
 
 ### Tidak termasuk
 
-- Dokumen lama berawalan `BRD_` di `docs/`.
-- Perubahan pada `SERIALIZER_FORMAT_VERSION` yang tetap 2 untuk `HumanAppearance` lama.
-- Perubahan pada skrip Godot selain skrip uji asap (smoke test).
+- Pengubahan dokumen lama berawalan `BRD_` pada folder `docs/`.
+- Perubahan pada fungsi serialisasi format versi 2 untuk struktur penampilan manusia lama.
+- Perubahan logika permainan pada skrip pratinjau Godot di luar skrip uji asap.
 
 ---
 
-## 5. Kondisi saat ini
+## 5. Kondisi saat ini dan audit kode
 
-### 5.1. Geometri tubuh tersebar di dalam fungsi penggambaran
+Audit kode dilakukan terhadap commit `ea0ca77bf27048d57398b9ae27c1f3afc5c2bd81` dibandingkan dengan commit acuan rilis sebelumnya `a7c90dd72da34f404ca87d1dfcbb3e18cfdf0a1f`.
 
-Fungsi `CharacterGenerator::render()` di `core/src/generator.cpp:101-523` menghitung 18 variabel geometri dari 4 parameter anatomi yaitu `height`, `body_mass`, `muscularity`, `posture` secara berurutan di dalam satu blok kode. Variabel ini tidak dikelompokkan dalam struktur data dan hanya hidup sebagai variabel lokal.
+### 5.1. Geometri tubuh dan ekstraksi fungsi
 
-| Variabel | Baris | Rumus |
-| --- | --- | --- |
-| `total_height` | 113 | `36 + round(h * 6.0)` |
-| `head_w` | 116 | Konstan 7 |
-| `head_h` | 117 | Konstan 8 |
-| `neck_w` | 118 | 3 jika `musc > 0.6 atau mass > 0.7`, selainnya 2 |
-| `leg_len` | 120 | `13 + round(leg_ratio * 4.0)` |
-| `torso_h` | 121-122 | `total_height - head_h - 2 - leg_len`, minimal 11 |
-| `arm_len` | 123 | `torso_h + 2` |
-| `shoulder_w` | 195 | `9 + round(musc * 4.0 + mass * 1.5)` |
-| `waist_w` | 196-198 | `6 + round(mass * 4.5 + (1 - musc) * 1.0)`, dibatasi bentuk V |
-| `hips_w` | 200 | `max(waist_w, 7 + round(mass * 3.5))` |
-| `leg_gap` | 203 | 1 jika `musc > 0.6 atau mass < 0.35`, selainnya 0 |
-| `thigh_thick` | 204-206 | 4, 3, atau 2 berdasarkan ambang `mass` dan `musc` |
-| `arm_base_thick` | 344 | 3 jika `musc > 0.65 atau mass > 0.75`, selainnya 2 |
+Pada implementasi acuan `a7c90dd`, perhitungan geometri tersebar langsung di dalam `core/src/generator.cpp:113-206, 344` sebagai variabel lokal. Pada commit `ea0ca77`, 7 nilai dasar telah diekstrak ke dalam struktur `BodyGeometry` pada `core/include/npc/body_geometry.hpp`:
 
-Sumber: `core/src/generator.cpp:113-206, 344`.
-
-### 5.2. Loop cedera tidak memeriksa amputasi
-
-Loop penggambaran cedera di `core/src/generator.cpp:486-520` mengulangi seluruh daftar cedera tanpa memeriksa `is_amputated()`. Cedera pada bagian tubuh yang sudah diamputasi tetap digambar. Bagian tubuh `LeftHand`, `RightHand`, `LeftFoot`, dan `RightFoot` tidak memiliki cabang sendiri dalam percabangan kondisi di baris 490-500, sehingga jatuh ke persegi panjang bawaan badan.
-
-Sumber: `core/src/generator.cpp:486-520`, `core/src/generator.cpp:489`.
-
-### 5.3. Cakupan matriks hasil acuan
-
-Berkas `tests/golden/matriks-acuan.txt` berisi 7.360 baris dengan rincian:
-
-| Kelompok | Jumlah baris | Kondisi uji |
-| --- | --- | --- |
-| `base` | 7.200 | Benih 1 sampai 100, 6 keadaan animasi, 4 arah, 3 nilai waktu |
-| `inj_0` sampai `inj_5` | 60 | Satu jenis cedera per benih dari benih 1 sampai 10, hanya pada badan, keparahan 0,5, diam, arah selatan, waktu 0,0 |
-| `amp_0` sampai `amp_9` | 100 | Satu amputasi per bagian tubuh dari benih 1 sampai 10, diam, arah selatan, waktu 0,0 |
-
-Cakupan yang belum ada meliputi cedera pada kepala, lengan, tangan, kaki, atau telapak kaki; cedera pada arah selain selatan; kombinasi cedera dan amputasi; beberapa amputasi sekaligus; profil batas dengan tinggi 0,0 atau 1,0, massa 0,0 atau 1,0, dan otot 0,0 atau 1,0.
-
-Sumber: `tests/golden/matriks-acuan.txt`, `tests/test_golden.cpp:44-59`, `tests/generate_fixtures.cpp`.
-
-### 5.4. Kebijakan versi saat ini
-
-| Pengenal | Nilai | Berkas | Perilaku pemeriksaan |
+| Variabel | Berkas dan baris asal | Rumus matematis | Rentang sah |
 | --- | --- | --- | --- |
-| `NPC_API_VERSION` | 3 | `core/include/npc/c_api.h:11` | `struct_size` diperiksa dengan kesetaraan ketat di `c_api.cpp:19, 62, 116` |
-| `PROFILE_SCHEMA_VERSION` | 1 | `core/include/npc/profile.hpp:14` | Validator menolak setiap nilai yang tidak sama dengan 1 di `profile.hpp:208` |
-| `SERIALIZER_FORMAT_VERSION` | 2 | `core/include/npc/serializer.hpp:13` | Pembaca memeriksa nomor versi format di `serializer.hpp:68` |
-| `PROFILE_FORMAT_VERSION` | 3 | `core/include/npc/serializer.hpp:14` | Pembaca memeriksa nomor versi format di `serializer.hpp:235` |
+| `neck_w` | `core/src/generator.cpp:118` | `(musc > 0.6 atau mass > 0.7) ? 3 : 2` | [2, 3] piksel |
+| `shoulder_w` | `core/src/generator.cpp:195` | `9 + round(musc * 4.0 + mass * 1.5)` | [9, 18] piksel |
+| `waist_w` | `core/src/generator.cpp:196-198` | `6 + round(mass * 4.5 + (1 - musc) * 1.0)`, dijepit `shoulder_w - 4` jika `musc > 0.5` dan `mass < 0.6` | [6, 16] piksel |
+| `hips_w` | `core/src/generator.cpp:200` | `max(waist_w, 7 + round(mass * 3.5))` | [6, 16] piksel |
+| `leg_gap` | `core/src/generator.cpp:203` | `(musc > 0.6 atau mass < 0.35) ? 1 : 0` | [0, 1] piksel |
+| `thigh_thick` | `core/src/generator.cpp:204-206` | `(mass > 0.7 dan musc > 0.5) ? 4 : ((mass < 0.3 dan musc < 0.3) ? 2 : 3)` | [2, 4] piksel |
+| `arm_base_thick` | `core/src/generator.cpp:344` | `(musc > 0.65 atau mass > 0.75) ? 3 : 2` | [2, 3] piksel |
 
-Sumber: berkas pada kolom Berkas.
+Sumber: `core/include/npc/body_geometry.hpp:26-49`, `core/src/generator.cpp:112, 118, 198-206, 343`.
 
-### 5.5. Tabel ambang diskret dalam fungsi penggambaran
+### 5.2. Perilaku penggambaran cedera dan amputasi
 
-Dua belas ambang diskret ditemukan di `core/src/generator.cpp`:
+Audit terhadap `core/src/generator.cpp:486-538` pada commit acuan `a7c90dd` menunjukkan bahwa loop cedera tidak memeriksa status amputasi bagian tubuh terkait. Cedera pada tangan dan kaki jatuh ke koordinat bawaan badan karena ketiadaan cabang kondisi khusus.
 
-| No | Baris | Kondisi | Parameter yang terlibat | Efek pada geometri |
-| --- | --- | --- | --- | --- |
-| 1 | 118 | `musc > 0,6 atau mass > 0,7` | otot, massa | `neck_w` melompat dari 2 ke 3 piksel |
-| 2 | 195 | `musc * 4,0 + mass * 1,5` | otot, massa | `shoulder_w` berubah kontinu |
-| 3 | 196 | `mass * 4,5 + (1 - musc) * 1,0` | massa, otot | `waist_w` berubah kontinu |
-| 4 | 197-198 | `musc > 0,5 dan mass < 0,6` | otot, massa | Bentuk V: `waist_w` dipotong ke `shoulder_w - 4` |
-| 5 | 203 | `musc > 0,6 atau mass < 0,35` | otot, massa | `leg_gap` melompat dari 0 ke 1 piksel |
-| 6 | 205 | `mass > 0,7 dan musc > 0,5` | massa, otot | `thigh_thick` melompat dari 3 ke 4 piksel |
-| 7 | 206 | `mass < 0,3 dan musc < 0,3` | massa, otot | `thigh_thick` melompat dari 3 ke 2 piksel |
-| 8 | 228, 262 | `musc > 0,4 atau mass > 0,4` | otot, massa | Betis mengembang 1 piksel |
-| 9 | 297 | `mass > 0,65` | massa | Perut menggembung sampai 2,5 piksel |
-| 10 | 344 | `musc > 0,65 atau mass > 0,75` | otot, massa | `arm_base_thick` melompat dari 2 ke 3 piksel |
-| 11 | 319 | `musc > 0,45` | otot | Penanda dada muncul |
-| 12 | 324 | `musc > 0,55` | otot | Garis tengah perut muncul |
+Pada commit `ea0ca77`, terdapat dua perubahan perilaku visual yang diterapkan:
+1. Pengecekan `if (cond.is_amputated(inj.body_part)) continue;` di baris 489.
+2. Penambahan kotak pembatas khusus untuk `LeftHand`, `RightHand`, `LeftFoot`, dan `RightFoot` di baris 498-515.
 
-Sumber: `core/src/generator.cpp:118-344`.
+Pemeriksaan terhadap 7.200 kasus dasar lama dan 160 kasus kondisi lama membuktikan bahwa 7.360 kombinasi dasar tersebut tidak memuat kombinasi cedera bersama amputasi, dan cedera lama hanya diuji pada badan. Oleh karena itu, seluruh 7.360 hash dasar lama tetap identik 100 persen. Perubahan visual hanya terjadi pada skenario baru yang memuat kombinasi tersebut.
 
-### 5.6. Status `CharacterProfile` dan domain
+Sumber: `core/src/generator.cpp:486-515`, `tests/golden/matriks-acuan.txt:1-7360`.
 
-Struktur `CharacterProfile` di `core/include/npc/profile.hpp:141-160` berisi empat domain: `GenerationProfile`, `AnatomyProfile`, `AppearanceProfile`, dan `PhysicalConditionProfile`. Belum ada domain geometri tubuh.
+### 5.3. Status matriks hasil acuan
 
-Sumber: `core/include/npc/profile.hpp:141-160`.
+Berkas `tests/golden/matriks-acuan.txt` pada commit `ea0ca77` berisi 7.884 baris dengan rincian:
 
-### 5.7. Status `CNpcProfile` dan ukuran struct
+| Kelompok | Jumlah baris | Status kompatibilitas | Kondisi uji |
+| --- | --- | --- | --- |
+| `base` | 7.200 | Kompatibel penuh | Benih 1 sampai 100, 6 animasi, 4 arah hadap, 3 waktu siklus |
+| `amp_0` sampai `amp_9` | 100 | Kompatibel penuh | 10 amputasi tunggal, benih 1 sampai 10, diam, arah selatan |
+| `inj_0` sampai `inj_5` | 60 | Kompatibel penuh | 6 jenis cedera badan, benih 1 sampai 10, diam, arah selatan |
+| `part_inj_0` sampai `part_inj_9` | 400 | Kasus perluasan baru | Cedera pada 10 bagian tubuh dalam 4 arah hadap untuk benih 1 sampai 10 |
+| `combo_0` sampai `combo_9` | 100 | Kasus perluasan baru | Kombinasi amputasi anggota gerak dengan cedera badan untuk benih 1 sampai 10 |
+| `bound_0` sampai `bound_5` | 24 | Kasus perluasan baru | 6 profil batas parameter ekstrem dalam 4 arah hadap |
 
-Struktur `CNpcProfile` di `core/include/npc/c_api.h:70-106` berisi field generasi, anatomi, penampilan, dan masker amputasi. Ukurannya diperiksa dengan kesetaraan ketat melalui `struct_size != sizeof(CNpcProfile)` di tiga tempat pada `c_api.cpp`.
+Total baris acuan adalah 7.884 baris. Sebanyak 7.360 baris pertama identik dengan commit acuan `a7c90dd`.
 
-Sumber: `core/include/npc/c_api.h:70-106`, `core/src/c_api.cpp:19, 62, 116`.
+Sumber: `tests/golden/matriks-acuan.txt`, `tests/generate_fixtures.cpp:29-222`.
 
----
+### 5.4. Kebijakan versi aktual
 
-## 6. Arsitektur sasaran
+Nilai versi aktual pada commit `ea0ca77`:
 
-Empat lapisan proyek:
+| Pengenal | Nilai aktual | Berkas sumber | Mekanisme validasi |
+| --- | --- | --- | --- |
+| `NPC_API_VERSION` | 4 | `core/include/npc/c_api.h:11` | Kesetaraan ketat `struct_size != sizeof(CNpcProfile)` di `core/src/c_api.cpp:19, 62, 124` |
+| `PROFILE_SCHEMA_VERSION` | 2 | `core/include/npc/profile.hpp:15` | Kesetaraan ketat `schema_version != PROFILE_SCHEMA_VERSION` di `core/include/npc/profile.hpp:216` |
+| `SERIALIZER_FORMAT_VERSION` | 2 | `core/include/npc/serializer.hpp:13` | Penanda format teks penampilan manusia lama di `core/include/npc/serializer.hpp:68` |
+| `PROFILE_FORMAT_VERSION` | 4 | `core/include/npc/serializer.hpp:14` | Format teks profil karakter di `core/include/npc/serializer.hpp:236` |
+| `LEGACY_PROFILE_FORMAT_VERSION` | 3 | `core/include/npc/serializer.hpp:15` | Jalur migrasi format profil lama di `core/include/npc/serializer.hpp:348` |
 
-1. **Inti Pembuat Karakter** (`core/`): kode C++20 yang memiliki seluruh logika geometri, validasi, serialisasi, dan penggambaran.
-2. **Jembatan C** (`core/include/npc/c_api.h`, `core/src/c_api.cpp`): antarmuka berbahasa C di atas inti.
-3. **Perluasan Godot** (`extension/`): modul GDExtension yang meneruskan panggilan ke inti.
-4. **Skrip Godot** (`godot/scripts/`): kode GDScript untuk antarmuka pratinjau.
-
-Perubahan arsitektur pada v0.3.3:
-
-- Inti menyediakan struktur baru `BodyGeometry` dan fungsi `compute_geometry()`.
-- `CharacterProfile` memiliki domain baru `BodyGeometry` dengan skema versi 2.
-- `CharacterGenerator::render()` menerima geometri yang sudah dihitung.
-- Loop cedera memeriksa `is_amputated()` menggunakan geometri yang sama.
-
-Alur data penggambaran dimulai dari `AnatomyProfile` menuju `compute_geometry()` menghasilkan `BodyGeometry`. `CharacterProfile` menyimpan `BodyGeometry` lalu meneruskannya ke `CharacterGenerator::render()`. Fungsi ini kemudian memanggil penggambaran torso dan penempelan efek cedera untuk menghasilkan penyangga piksel berukuran 32 × 48 piksel.
+Sumber: berkas sumber pada tabel di atas.
 
 ---
 
-## 7. Kebutuhan fungsional
+## 6. Sumber kebenaran dan invarian geometri
 
-### Fungsional-001: Struktur geometri tubuh bersama
+Untuk mencegah terjadinya inkonsistensi antara dua representasi data, aturan invarian geometri ditetapkan sebagai berikut:
 
-| Kolom | Isi |
-| --- | --- |
-| Pengenal | `Fungsional-001` |
-| Judul | Struktur geometri tubuh bersama |
-| Pernyataan | Inti harus menyediakan struktur `BodyGeometry` yang menyimpan 7 nilai dasar bilangan bulat: `shoulder_w`, `waist_w`, `hips_w`, `thigh_thick`, `neck_w`, `arm_base_thick`, dan `leg_gap`. |
-| Alasan | Tahap penggambaran dan tahap cedera memerlukan nilai geometri yang sama. Menghitung sekali dan menyimpannya mencegah ketidakkonsistenan. |
-| Cara verifikasi | Tes membuat `BodyGeometry` dari `AnatomyProfile` bawaan dan memeriksa bahwa ketujuh nilai cocok dengan keluaran rumus yang ada di `generator.cpp:118-344`. |
-| Tahap | 1 |
-| Bergantung pada | Tidak ada |
+### 6.1. Invarian sumber kebenaran tunggal
 
-### Fungsional-002: Fungsi penghitung geometri tubuh
+1. Parameter anatomi (`body_mass` dan `muscularity`) adalah sumber kebenaran primer dari `BodyGeometry`.
+2. Struktur `BodyGeometry` adalah representasi nilai turunan terhitung yang disimpan untuk efisiensi pembacaan cepat dan determinisme.
+3. Fungsi `compute_geometry(body_mass, muscularity)` adalah satu-satunya algoritma resmi penghitungan geometri dasar.
+4. Nilai turunan per baris piksel, seperti kurva lebar dada, lekukan pinggang, dan pelebaran pinggul, tidak disimpan di dalam struktur data melainkan dihitung secara lokal saat proses penggambaran berlangsung.
 
-| Kolom | Isi |
-| --- | --- |
-| Pengenal | `Fungsional-002` |
-| Judul | Fungsi penghitung geometri tubuh |
-| Pernyataan | Inti harus menyediakan fungsi `compute_geometry(const AnatomyProfile&)` yang mengembalikan `BodyGeometry` dengan rumus yang identik dengan kode saat ini di `generator.cpp:113-206, 344`. |
-| Alasan | Fungsi ini menjadi satu tempat rumus geometri dihitung agar perubahan rumus di masa depan terpusat. |
-| Cara verifikasi | Tes memanggil `compute_geometry()` untuk 100 benih acak dan membandingkan hasilnya dengan nilai dari rumus lama. Seluruh 7 nilai harus identik. |
-| Tahap | 1 |
-| Bergantung pada | `Fungsional-001` |
+### 6.2. Kebijakan sinkronisasi dan penanganan data basi
 
-### Fungsional-003: Geometri tubuh di profil karakter
+1. **Pembuatan Profil:** Fungsi `CharacterProfile::create_default()` dan `CharacterProfile::from_legacy()` wajib memanggil `compute_geometry()` untuk menginisialisasi field `body_geometry`.
+2. **Normalisasi Profil:** Fungsi `ProfileValidator::normalize()` wajib menghitung ulang `body_geometry` dari parameter anatomi setelah nilai pecahan dijepit ke rentang sah.
+3. **Validasi Profil:** Fungsi `ProfileValidator::validate()` memeriksa bahwa setiap nilai di dalam `body_geometry` berada dalam batas fisik yang sah. Jika nilai berada di luar batas, profil dinyatakan tidak valid.
+4. **Deserialisasi Data Lama:** Saat membaca format versi 3 atau format versi 2 yang tidak memuat field geometri, deserializer secara otomatis menghitung `body_geometry` menggunakan `compute_geometry()`.
+5. **Jembatan Antarmuka C:** Pemanggilan `npc_profile_create_default()` mengisi 7 field geometri secara otomatis. Pemanggilan `npc_profile_render()` membaca field geometri dari struktur biner dan memvalidasinya sebelum proses render dimulai.
+6. **Perluasan Godot:** Jika kamus masukan pada `dict_to_profile()` tidak memiliki kunci `body_geometry`, fungsi menghitungnya langsung dari anatomi menggunakan `compute_geometry()`.
 
-| Kolom | Isi |
-| --- | --- |
-| Pengenal | `Fungsional-003` |
-| Judul | Geometri tubuh tersimpan di profil |
-| Pernyataan | `CharacterProfile` harus menyimpan `BodyGeometry` sebagai domain baru dengan `PROFILE_SCHEMA_VERSION` bernilai 2. |
-| Alasan | Menyimpan geometri ke profil memungkinkan penentuan deterministik tanpa menghitung ulang dan menjadi bagian dari genom karakter. |
-| Cara verifikasi | Tes membuat profil bawaan, memeriksa bahwa `schema_version` bernilai 2, dan memeriksa bahwa `body_geometry.shoulder_w` cocok dengan `compute_geometry()` dari `anatomy` profil tersebut. |
-| Tahap | 2 |
-| Bergantung pada | `Fungsional-001`, `Fungsional-002` |
+---
 
-### Fungsional-004: Serialisasi format V4 menyimpan geometri
+## 7. Kontrak kompatibilitas dan strategi pengujian
 
-| Kolom | Isi |
-| --- | --- |
-| Pengenal | `Fungsional-004` |
-| Judul | Serialisasi format V4 menyimpan geometri |
-| Pernyataan | `Serializer::serialize_profile()` harus menyimpan 7 nilai `BodyGeometry` setelah masker amputasi dengan `PROFILE_FORMAT_VERSION` bernilai 4. |
-| Alasan | Format V3 tidak menyimpan geometri sehingga format baru diperlukan agar profil yang disimpan memuat geometri lengkap. |
-| Cara verifikasi | Tes melakukan serialisasi dan deserialisasi 100 profil yang memuat geometri. Seluruh 7 nilai geometri harus identik setelah perjalanan bolak-balik. |
-| Tahap | 2 |
-| Bergantung pada | `Fungsional-003` |
+Pengujian sistem dibagi secara tegas menjadi tiga kategori:
 
-### Fungsional-005: Migrasi otomatis data lama
+### Kategori A: Regresi dasar (Regression Baseline)
 
-| Kolom | Isi |
-| --- | --- |
-| Pengenal | `Fungsional-005` |
-| Judul | Migrasi otomatis data lama |
-| Pernyataan | `Serializer::deserialize_profile()` harus dapat membaca format V3 skema 1 dan format V2, lalu menghasilkan `CharacterProfile` skema 2 dengan `BodyGeometry` yang dihitung dari `AnatomyProfile` memakai `compute_geometry()`. |
-| Alasan | Profil yang disimpan oleh versi sebelumnya harus tetap dapat dimuat tanpa kehilangan data. |
-| Cara verifikasi | Tes membuat teks serialisasi format V3 dan V2, memuatnya dengan deserializer baru, dan memeriksa bahwa geometri yang dihasilkan cocok dengan `compute_geometry()` dari anatomi. |
-| Tahap | 2 |
-| Bergantung pada | `Fungsional-004` |
+- **Cakupan:** 7.360 kombinasi acuan lama yang terdiri dari 7.200 kasus variasi animasi dasar, 100 kasus amputasi tunggal, dan 60 kasus cedera badan.
+- **Kriteria Lulus:** Hash 64 bit dari penyangga piksel wajib identik 100 persen dengan commit acuan `a7c90dd`.
+- **Perintah Verifikasi:** `ctest --test-dir build -R GoldenFixtureTest --output-on-failure`.
 
-### Fungsional-006: Struktur biner diperluas dengan geometri
+### Kategori B: Perluasan kompatibilitas (Compatibility Expansion)
 
-| Kolom | Isi |
-| --- | --- |
-| Pengenal | `Fungsional-006` |
-| Judul | Struktur biner diperluas dengan geometri |
-| Pernyataan | `CNpcProfile` harus mendapat 7 field bilangan bulat bertanda 16 bit untuk `BodyGeometry` setelah `amputations_mask` dengan `NPC_API_VERSION` bernilai 4. |
-| Alasan | Pemanggil Jembatan C memerlukan akses ke geometri tubuh untuk keperluan antarmuka pengguna. Kenaikan versi mencegah pemanggil lama membaca field yang tidak ada. |
-| Cara verifikasi | Tes memanggil `npc_profile_create_default()` dengan ukuran struct baru dan memeriksa bahwa 7 field geometri terisi. Tes memanggil dengan ukuran struct lama dan memeriksa pengembalian kode galat `NPC_ERR_VERSION_MISMATCH`. |
-| Tahap | 2 |
-| Bergantung pada | `Fungsional-003` |
+- **Cakupan:** 524 kombinasi acuan baru yang terdiri dari 400 kasus cedera seluruh 10 bagian tubuh dalam 4 arah hadap, 100 kasus kombinasi amputasi bersama cedera, dan 24 kasus profil batas ekstrem.
+- **Kriteria Lulus:** Seluruh kombinasi baru menghasilkan hash yang deterministik dan konsisten pada seluruh platform.
+- **Verifikasi Kemonotonan:** Target uji `test_transition` memverifikasi 12 ambang batas diskretisasi dan 5 pasangan kemonotonan parameter.
+- **Verifikasi Rumus Geometri:** Target uji `test_geometry` memverifikasi kesetaraan nilai `compute_geometry()` terhadap 100 benih acak.
 
-### Fungsional-007: Penggambaran memakai geometri yang tersimpan
+### Kategori C: Perubahan perilaku visual yang disengaja (Intentional Behavior Changes)
 
-| Kolom | Isi |
-| --- | --- |
-| Pengenal | `Fungsional-007` |
-| Judul | Penggambaran memakai geometri tersimpan |
-| Pernyataan | `CharacterGenerator::render()` harus memakai nilai dari `BodyGeometry` yang diterimanya tanpa menghitung ulang dari parameter anatomi. |
-| Alasan | Menghilangkan duplikasi rumus dan memastikan tahap penggambaran dan tahap cedera memakai nilai yang sama. |
-| Cara verifikasi | Tes membuat profil dengan geometri bawaan, menggambarnya, lalu membandingkan penyangga piksel dengan keluaran penggambaran lama untuk 100 benih acak. Sidik digital penyangga piksel harus identik. |
-| Tahap | 2 |
-| Bergantung pada | `Fungsional-001`, `Fungsional-002` |
+Dua perubahan perilaku visual disetujui untuk memperbaiki anomali grafis:
 
-### Fungsional-008: Cedera pada amputasi dilewati
+1. **Pengabaian Cedera pada Bagian Tubuh Teramputasi:**
+   - *Perilaku Lama:* Cedera tetap digambar melayang pada koordinat bagian tubuh yang telah diamputasi.
+   - *Perilaku Baru:* Cedera dilewati jika `cond.is_amputated(inj.body_part)` bernilai benar.
+   - *Verifikasi:* Pengujian unit pada `tests/test_profile.cpp` dan kombinasi `combo_0` sampai `combo_9` pada matriks acuan.
 
-| Kolom | Isi |
-| --- | --- |
-| Pengenal | `Fungsional-008` |
-| Judul | Cedera pada amputasi dilewati |
-| Pernyataan | Loop cedera di `CharacterGenerator::render()` harus memeriksa status `is_amputated(inj.body_part)` dan melewati cedera pada bagian tubuh yang sudah diamputasi. |
-| Alasan | Menggambar cedera pada bagian tubuh yang hilang menghasilkan anomali visual yang mustahil secara fisik. |
-| Cara verifikasi | Tes membuat profil dengan amputasi lengan kiri dan cedera pada lengan kiri, menggambarnya, dan memeriksa bahwa piksel di wilayah lengan kiri tidak berubah dibandingkan profil tanpa cedera. Perubahan visual ditandai. |
-| Tahap | 3 |
-| Bergantung pada | `Fungsional-007` |
+2. **Kotak Pembatas Cedera Tangan dan Kaki:**
+   - *Perilaku Lama:* Bagian tubuh `LeftHand`, `RightHand`, `LeftFoot`, dan `RightFoot` tidak memiliki percabangan koordinat khusus sehingga menggunakan kotak pembatas badan.
+   - *Perilaku Baru:* Keempat bagian tubuh tersebut memiliki kotak pembatas koordinat yang sesuai dengan posisi fisiknya pada kanvas.
+   - *Verifikasi:* Kasus `part_inj_4`, `part_inj_5`, `part_inj_8`, dan `part_inj_9` pada matriks acuan.
 
-### Fungsional-009: Geometri cedera tangan dan kaki
+---
 
-| Kolom | Isi |
-| --- | --- |
-| Pengenal | `Fungsional-009` |
-| Judul | Geometri cedera tangan dan kaki |
-| Pernyataan | Loop cedera harus menyediakan batas persegi panjang untuk `LeftHand`, `RightHand`, `LeftFoot`, dan `RightFoot` yang sesuai dengan posisi penggambaran anggota tubuh tersebut. |
-| Alasan | Saat ini keempat bagian tubuh itu jatuh ke persegi panjang bawaan badan sehingga cedera tangan muncul di wilayah perut. |
-| Cara verifikasi | Tes membuat profil dengan cedera pada tangan kiri, menggambarnya, dan memeriksa bahwa piksel cedera berada di dalam wilayah tangan kiri dan bukan di badan. Perubahan visual ditandai. |
-| Tahap | 3 |
-| Bergantung pada | `Fungsional-007`, `Fungsional-008` |
+## 8. Kebijakan versi dan migrasi data
 
-### Fungsional-010: Pembanding referensi sementara
+### 8.1. Antarmuka Pemrograman C (`NPC_API_VERSION`)
 
-| Kolom | Isi |
-| --- | --- |
-| Pengenal | `Fungsional-010` |
-| Judul | Pembanding referensi sementara |
-| Pernyataan | Target tes terpisah harus menyimpan salinan fungsi penggambaran dari commit sebelum refaktor dan membandingkan piksel demi piksel dengan fungsi baru untuk profil batas, seluruh bagian tubuh, cedera, amputasi, dan seluruh arah. |
-| Alasan | Pembanding referensi memastikan refaktor kode tidak mengubah keluaran piksel secara tidak sengaja pada kasus di luar perbaikan cedera. |
-| Cara verifikasi | Target tes `test_refactor_parity` menghasilkan 0 selisih piksel pada kasus yang tidak terpengaruh `Fungsional-008` dan `Fungsional-009`. |
-| Tahap | 3 |
-| Bergantung pada | `Fungsional-007` |
+- **Nilai:** 4 (sebelumnya 3).
+- **Alasan Kenaikan:** Penambahan 7 field bilangan bulat bertanda 16 bit (`int16_t`) pada akhir struktur biner `CNpcProfile`.
+- **Kontrak antarmuka biner:** Pemeriksaan `struct_size != sizeof(CNpcProfile)` menggunakan kesetaraan ketat. Pemanggil lama yang menggunakan struktur ukuran versi 3 ditolak dengan kode galat `NPC_ERR_VERSION_MISMATCH` (-3).
+- **Keamanan Memori:** Penolakan ukuran lama mencegah terjadinya pembacaan memori liar di luar batas alokasi pemanggil.
 
-### Fungsional-011: Perluasan matriks hasil acuan
+### 8.2. Skema Profil Karakter (`PROFILE_SCHEMA_VERSION`)
 
-| Kolom | Isi |
-| --- | --- |
-| Pengenal | `Fungsional-011` |
-| Judul | Perluasan matriks hasil acuan |
-| Pernyataan | Berkas `tests/golden/matriks-acuan.txt` harus diregenerasi dan diperluas mencakup cedera pada seluruh 10 bagian tubuh dalam 4 arah, kombinasi cedera dan amputasi, serta 6 profil batas ekstrem. |
-| Alasan | Cakupan 7.360 baris sebelumnya tidak mencakup cedera lintas bagian tubuh, kombinasi cedera-amputasi, atau profil batas. |
-| Cara verifikasi | Eksekusi `test_golden.cpp` memverifikasi seluruh baris baru tanpa ketidakcocokan dengan jumlah baris melampaui 7.800 baris. |
-| Tahap | 4 |
-| Bergantung pada | `Fungsional-008`, `Fungsional-009` |
+- **Nilai:** 2 (sebelumnya 1).
+- **Alasan Kenaikan:** Penambahan domain `body_geometry` ke dalam struktur `CharacterProfile`.
+- **Kebijakan Validasi:** Fungsi `ProfileValidator::validate()` menolak profil dengan nomor skema selain 2.
+- **Migrasi:** Profil skema 1 yang dimuat melalui deserializer secara otomatis ditingkatkan menjadi skema 2 dengan menghitung nilai geometri dari anatomi.
 
-### Fungsional-012: Perluasan Godot menyertakan geometri
+### 8.3. Format Serialisasi Profil (`PROFILE_FORMAT_VERSION`)
 
-| Kolom | Isi |
-| --- | --- |
-| Pengenal | `Fungsional-012` |
-| Judul | Perluasan Godot menyertakan geometri |
-| Pernyataan | Fungsi `profile_to_dict()` dan `dict_to_profile()` di `extension/src/npc_generator.cpp` harus menyertakan subdomain `body_geometry` dalam kamus profil. |
-| Alasan | Skrip Godot memerlukan akses ke geometri untuk keperluan visualisasi antarmuka pengguna. |
-| Cara verifikasi | Skrip uji Godot memanggil `create_default_profile()` dan memeriksa keberadaan kunci `body_geometry` dengan nilai `shoulder_w` lebih besar dari 0. |
-| Tahap | 2 |
-| Bergantung pada | `Fungsional-003` |
+- **Nilai:** 4 (sebelumnya 3).
+- **Alasan Kenaikan:** Penyimpanan 7 nilai integer geometri tubuh setelah data masker amputasi.
+- **Dukungan Format Lama:**
+  - Format versi 4: Membaca seluruh field profil termasuk 7 nilai geometri.
+  - Format versi 3: Membaca data profil lama dan menghitung field geometri secara otomatis.
+  - Format versi 2: Membaca struktur penampilan lama dan memigrasikannya ke profil lengkap.
+- **Pencegahan Pemotongan Tipe Data:** Seluruh nilai numerik mentah dibaca ke dalam variabel penampung bertipe integer ukuran penuh sebelum divalidasi rentang batasnya. Nilai seperti `256`, `999`, atau angka negatif ditolak sebelum proses konversi ke tipe data yang lebih kecil dilakukan.
 
-### Fungsional-013: Tabel kemonotonan dan tes ambang
+---
 
-| Kolom | Isi |
-| --- | --- |
-| Pengenal | `Fungsional-013` |
-| Judul | Tabel kemonotonan dan tes ambang |
-| Pernyataan | Target tes `test_transition.cpp` harus memverifikasi 12 ambang diskret dengan menguji nilai sebelum, pada, dan sesudah setiap ambang, serta memeriksa pasangan yang dirancang monoton sesuai tabel. |
-| Alasan | Kemonotonan tidak berlaku umum untuk semua parameter dan harus diuji per pasangan wilayah. |
-| Cara verifikasi | Target tes `test_transition` menghasilkan 0 kegagalan uji. |
-| Tahap | 5 |
-| Bergantung pada | `Fungsional-002` |
+## 9. Kriteria transisi dan batas geometri
 
-Tabel kemonotonan yang dirancang monoton:
+### 9.1. Matriks ambang batas diskretisasi
 
-| Pasangan | Wilayah parameter | Arah monoton |
-| --- | --- | --- |
-| (`muscularity`, `shoulder_w`) | 0,0 sampai 1,0 untuk semua nilai massa tubuh | Naik |
-| (`body_mass`, `waist_w`) | 0,0 sampai 1,0 untuk semua nilai otot | Naik |
-| (`body_mass`, `hips_w`) | 0,0 sampai 1,0 | Naik |
-| (`body_mass`, `shoulder_w`) | 0,0 sampai 1,0 untuk semua nilai otot | Naik |
-| (`muscularity`, `waist_w`) | 0,0 sampai 1,0 dengan massa tubuh konstan | Turun |
+Dua belas ambang batas pada algoritma penggambaran diuji perilakunya pada nilai sebelum, tepat pada ambang, dan sesudah ambang:
+
+| No | Kondisi logika | Parameter | Titik uji sebelum | Titik uji sesudah | Perilaku keluaran |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `musc > 0.6 atau mass > 0.7` | Otot, massa | `musc = 0.59`, `mass = 0.50` | `musc = 0.61`, `mass = 0.50` | `neck_w` melompat dari 2 ke 3 piksel |
+| 2 | `musc * 4.0 + mass * 1.5` | Otot, massa | Rentang kontinu [0.0, 1.0] | Rentang kontinu [0.0, 1.0] | `shoulder_w` bertambah secara bertahap |
+| 3 | `mass * 4.5 + (1 - musc) * 1.0` | Massa, otot | Rentang kontinu [0.0, 1.0] | Rentang kontinu [0.0, 1.0] | `waist_w` bertambah seiring massa |
+| 4 | `musc > 0.5 dan mass < 0.6` | Otot, massa | `musc = 0.49`, `mass = 0.40` | `musc = 0.90`, `mass = 0.40` | Bentuk V: `waist_w <= shoulder_w - 4` |
+| 5 | `musc > 0.6 atau mass < 0.35` | Otot, massa | `musc = 0.59`, `mass = 0.50` | `musc = 0.61`, `mass = 0.50` | `leg_gap` melompat dari 0 ke 1 piksel |
+| 6 | `mass > 0.7 dan musc > 0.5` | Massa, otot | `mass = 0.69`, `musc = 0.55` | `mass = 0.75`, `musc = 0.55` | `thigh_thick` melompat dari 3 ke 4 piksel |
+| 7 | `mass < 0.3 dan musc < 0.3` | Massa, otot | `mass = 0.35`, `musc = 0.25` | `mass = 0.25`, `musc = 0.25` | `thigh_thick` melompat dari 3 ke 2 piksel |
+| 8 | `musc > 0.4 atau mass > 0.4` | Otot, massa | `musc = 0.39`, `mass = 0.30` | `musc = 0.41`, `mass = 0.30` | Pelebaran lateral betis bertambah 1 piksel |
+| 9 | `mass > 0.65` | Massa | `mass = 0.64` | `mass = 0.66` | Tonjolan perut bertambah hingga 2,5 piksel |
+| 10 | `musc > 0.65 atau mass > 0.75` | Otot, massa | `musc = 0.64`, `mass = 0.50` | `musc = 0.66`, `mass = 0.50` | `arm_base_thick` melompat dari 2 ke 3 piksel |
+| 11 | `musc > 0.45` | Otot | `musc = 0.44` | `musc = 0.46` | Titik bayangan dada muncul pada tampak selatan |
+| 12 | `musc > 0.55` | Otot | `musc = 0.54` | `musc = 0.56` | Garis tengah otot perut muncul |
+
+Sumber: `core/src/generator.cpp:118-344`, diverifikasi oleh `tests/test_transition.cpp:8-44`.
+
+### 9.2. Tabel kemonotonan terverifikasi
+
+Kemonotonan hanya diwajibkan untuk pasangan parameter yang dirancang monoton:
+
+| Pasangan parameter | Kondisi parameter lain | Sifat kemonotonan | Dasar perancangan |
+| --- | --- | --- | --- |
+| (`muscularity`, `shoulder_w`) | Semua nilai `body_mass` | Tidak pernah turun (naik) | Pertambahan otot selalu melebarkan bahu |
+| (`body_mass`, `waist_w`) | `muscularity` konstan | Tidak pernah turun (naik) | Pertambahan massa selalu melebarkan pinggang |
+| (`body_mass`, `hips_w`) | Semua nilai `muscularity` | Tidak pernah turun (naik) | Pertambahan massa selalu melebarkan pinggul |
+| (`body_mass`, `shoulder_w`) | `muscularity` konstan | Tidak pernah turun (naik) | Pertambahan massa menambah massa bahu |
+| (`muscularity`, `waist_w`) | `body_mass` konstan | Tidak pernah naik (turun) | Pertambahan otot merampingkan pinggang |
 
 Pasangan yang tidak monoton:
+- Hubungan antara `body_mass` dengan lebar baris tengah badan tidak monoton karena keberadaan suku diskret di baris 297 yang menambahkan tonjolan perut secara terlokalisir.
+- Hubungan antara `muscularity` dengan `thigh_thick` tidak monoton global karena dipengaruhi oleh interaksi ambang ganda antara massa dan otot.
 
-| Pasangan | Alasan |
-| --- | --- |
-| (`body_mass`, lebar torso baris tengah) | Suku `mass > 0.65` di baris 297 menambah sampai 2,5 piksel di wilayah perut |
-| (`muscularity`, `thigh_thick`) | Dipengaruhi dua ambang diskret terpisah yaitu ambang tebal 4 dan ambang kurus 2 |
-
----
-
-## 8. Kebutuhan nonfungsional
-
-### Nonfungsional-001: Determinisme lintas platform
-
-| Kolom | Isi |
-| --- | --- |
-| Pengenal | `Nonfungsional-001` |
-| Judul | Determinisme lintas platform |
-| Pernyataan | Fungsi `compute_geometry()` harus menghasilkan nilai yang identik pada sistem operasi Linux, Windows, dan macOS untuk masukan yang sama. |
-| Alasan | Geometri yang disimpan ke profil menjadi bagian dari genom karakter sehingga nilai yang berbeda antarplatform merusak reproduksi visual. |
-| Cara verifikasi | Pipa integrasi berkelanjutan menjalankan tes `test_geometry` pada runner Linux dan Windows dengan seluruh 7 nilai identik. |
-| Tahap | 1 |
-| Bergantung pada | `Fungsional-002` |
-
-### Nonfungsional-002: Kinerja penghitungan geometri
-
-| Kolom | Isi |
-| --- | --- |
-| Pengenal | `Nonfungsional-002` |
-| Judul | Kinerja penghitungan geometri |
-| Pernyataan | Fungsi `compute_geometry()` harus selesai dalam waktu di bawah 0,01 milidetik per panggilan pada prosesor dengan kecepatan 3 gigahertz. |
-| Alasan | Fungsi ini dipanggil setiap kali profil karakter dibuat sehingga beban komputasi harus minimal. |
-| Cara verifikasi | Tolok ukur kinerja memanggil `compute_geometry()` sebanyak 100.000 kali dan menghitung rata-rata waktu eksekusi di bawah 0,01 milidetik. |
-| Tahap | 1 |
-| Bergantung pada | `Fungsional-002` |
-
-### Nonfungsional-003: Kompatibilitas mundur serialisasi
-
-| Kolom | Isi |
-| --- | --- |
-| Pengenal | `Nonfungsional-003` |
-| Judul | Kompatibilitas mundur serialisasi |
-| Pernyataan | Fungsi deserialisasi harus dapat membaca format V2, V3, dan V4 tanpa kehilangan data, serta menghitung otomatis geometri untuk format lama. |
-| Alasan | Berkas simpanan karakter dari versi rilis sebelumnya harus dapat dimuat tanpa kendala. |
-| Cara verifikasi | Pengujian memuat sampel data format V2 dan V3, memvalidasi keberhasilan pemuatan, dan memeriksa kecocokan geometri hasil hitung otomatis. |
-| Tahap | 2 |
-| Bergantung pada | `Fungsional-005` |
+Sumber: `tests/test_transition.cpp:46-93`.
 
 ---
 
-## 9. Antarmuka lintas lapisan
+## 10. Kriteria penerimaan final
 
-### 9.1. `compute_geometry()`
-
-| Kolom | Isi |
-| --- | --- |
-| Nama | `compute_geometry` |
-| Arah | Inti Pembuat Karakter ke modul pemanggil internal |
-| Masukan | `const AnatomyProfile&` berupa 8 nilai pecahan dalam rentang 0,0 sampai 1,0 |
-| Keluaran | `BodyGeometry` berisi 7 nilai bilangan bulat dengan rentang piksel terdefinisi |
-| Penanganan galat | Masukan divalidasi terlebih dahulu oleh `ProfileValidator` sebelum dihitung |
-| Pemilik memori | Pemanggil memiliki salinan struktur `BodyGeometry` yang dikembalikan |
-| Versi | Mengikuti skema profil versi 2 |
-| Kompatibilitas | Fungsi baru internal C++20 |
-
-### 9.2. `CNpcProfile` (versi 4)
-
-| Kolom | Isi |
-| --- | --- |
-| Nama | `CNpcProfile` |
-| Arah | Jembatan C ke aplikasi pemanggil |
-| Masukan | Pemanggil mengisi `struct_size = sizeof(CNpcProfile)` beserta parameter profil |
-| Keluaran | Field geometri terisi oleh `npc_profile_create_default()` |
-| Penanganan galat | Mengembalikan kode galat `NPC_ERR_VERSION_MISMATCH` jika `struct_size` tidak cocok |
-| Pemilik memori | Pemanggil mengalokasikan dan membebaskan struktur memori `CNpcProfile` |
-| Versi | `NPC_API_VERSION` bernilai 4 |
-| Kompatibilitas | Pemanggil lama dengan ukuran versi 3 ditolak secara aman tanpa menimbulkan kegagalan memori |
-
-### 9.3. Kamus profil Perluasan Godot
-
-| Kolom | Isi |
-| --- | --- |
-| Nama | Subdomain `body_geometry` dalam kamus profil |
-| Arah | Perluasan Godot ke Skrip Godot |
-| Masukan | Dihasilkan dari instansiasi profil karakter native |
-| Keluaran | Kamus berisi 7 kunci bilangan bulat untuk nilai geometri tubuh |
-| Penanganan galat | Jika kunci tidak ada saat konversi ke profil native, geometri dihitung otomatis dari anatomi |
-| Pemilik memori | Dikelola oleh sistem manajemen memori Godot Variant |
-| Versi | Mengikuti skema profil versi 2 |
-| Kompatibilitas | Skrip lama yang belum membaca kunci geometri tetap berjalan normal |
-
----
-
-## 10. Dampak dan risiko
-
-| Pengenal | Risiko | Dampak | Cara mengurangi |
-| --- | --- | --- | --- |
-| `Risiko-001` | Variasi pembulatan fungsi pecahan antar-kompiler menghasilkan geometri berbeda | Sidik digital profil tidak cocok antar-platform | `compute_geometry()` hanya menggunakan `std::round()` pada tipe pecahan presisi tunggal dengan pengujian otomatis di Linux dan Windows. |
-| `Risiko-002` | Regenerasi matriks hasil acuan menghilangkan riwayat regresi visual versi lama | Kerusakan visual baru berpotensi luput dari deteksi | Menggunakan pembanding referensi sementara untuk memverifikasi piksel demi piksel sebelum memperbarui berkas matriks acuan. |
-| `Risiko-003` | Pemanggil lama Jembatan C ditolak karena ukuran struktur biner berubah | Aplikasi luar yang belum diperbarui gagal melakukan inisialisasi | Perilaku ini disengaja untuk menjaga integritas data dan didokumentasikan dalam panduan rilis. |
-| `Risiko-004` | Perbaikan pengabaian cedera pada amputasi mengubah piksel keluaran | Matriks hasil acuan lama tidak cocok | Memperbarui matriks acuan secara terkontrol pada tahap 4 setelah verifikasi lulus. Ditandai sebagai perubahan visual. |
-| `Risiko-005` | Penyesuaian koordinat cedera tangan dan kaki memindahkan lokasi piksel efek | Pergeseran letak titik cedera pada anggota badan terkait | Menambahkan skenario uji khusus untuk memverifikasi penempatan koordinat baru. Ditandai sebagai perubahan visual. |
-
----
-
-## 11. Rencana tahap
-
-### Tahap 1: Struktur `BodyGeometry` dan `compute_geometry()`
-
-- **Keluaran:** Berkas `core/include/npc/body_geometry.hpp` berisi definisi `BodyGeometry` dan implementasi `compute_geometry()`.
-- **Ketergantungan:** Tidak ada.
-- **Kebutuhan:** `Fungsional-001`, `Fungsional-002`, `Nonfungsional-001`, `Nonfungsional-002`.
-- **Berkas terdampak:**
-
-| Berkas | Tindakan |
-| --- | --- |
-| `core/include/npc/body_geometry.hpp` | Dibuat |
-| `tests/test_geometry.cpp` | Dibuat |
-| `CMakeLists.txt` | Diubah untuk menambahkan target tes baru |
-
-### Tahap 2: Integrasi ke profil, serialisasi, dan lintas lapisan
-
-- **Keluaran:** Profil karakter skema versi 2, serialisasi format V4, struktur biner versi 4, dan dukungan geometri pada modul Godot.
-- **Ketergantungan:** Tahap 1.
-- **Kebutuhan:** `Fungsional-003`, `Fungsional-004`, `Fungsional-005`, `Fungsional-006`, `Fungsional-007`, `Fungsional-012`, `Nonfungsional-003`.
-- **Berkas terdampak:**
-
-| Berkas | Tindakan |
-| --- | --- |
-| `core/include/npc/profile.hpp` | Diubah |
-| `core/include/npc/serializer.hpp` | Diubah |
-| `core/include/npc/c_api.h` | Diubah |
-| `core/src/c_api.cpp` | Diubah |
-| `core/src/generator.cpp` | Diubah |
-| `core/include/npc/generator.hpp` | Diubah |
-| `extension/src/npc_generator.cpp` | Diubah |
-| `tests/test_profile.cpp` | Diubah |
-| `tests/test_serializer.cpp` | Diubah |
-| `godot/scripts/smoke_test_profile.gd` | Diubah |
-
-### Tahap 3: Perbaikan cedera-amputasi dan pembanding referensi
-
-- **Keluaran:** Loop cedera mengabaikan anggota tubuh yang diamputasi, penempatan cedera tangan dan kaki memiliki batas tersendiri, dan verifikasi pembanding referensi selesai.
-- **Ketergantungan:** Tahap 2.
-- **Kebutuhan:** `Fungsional-008`, `Fungsional-009`, `Fungsional-010`.
-- **Berkas terdampak:**
-
-| Berkas | Tindakan |
-| --- | --- |
-| `core/src/generator.cpp` | Diubah |
-| `tests/test_refactor_parity.cpp` | Dibuat untuk pengujian sementara |
-| `CMakeLists.txt` | Diubah |
-
-### Tahap 4: Perluasan dan regenerasi matriks hasil acuan
-
-- **Keluaran:** Berkas acuan `tests/golden/matriks-acuan.txt` diregenerasi dengan jumlah lebih dari 7.800 baris kombinasi uji.
-- **Ketergantungan:** Tahap 3.
-- **Kebutuhan:** `Fungsional-011`.
-- **Berkas terdampak:**
-
-| Berkas | Tindakan |
-| --- | --- |
-| `tests/generate_fixtures.cpp` | Diubah |
-| `tests/golden/matriks-acuan.txt` | Diubah melalui proses regenerasi |
-| `tests/test_golden.cpp` | Diubah |
-
-### Tahap 5: Tes ambang dan kemonotonan
-
-- **Keluaran:** Target pengujian `test_transition.cpp` yang memvalidasi 12 ambang batas diskret dan kemonotonan parameter.
-- **Ketergantungan:** Tahap 1.
-- **Kebutuhan:** `Fungsional-013`.
-- **Berkas terdampak:**
-
-| Berkas | Tindakan |
-| --- | --- |
-| `tests/test_transition.cpp` | Dibuat |
-| `CMakeLists.txt` | Diubah |
-
----
-
-## 12. Kriteria penerimaan
-
-| Pengenal | Pernyataan |
-| --- | --- |
-| `Penerimaan-001` | Fungsi `compute_geometry()` menghasilkan 7 nilai dasar yang identik dengan rumus lama pada 100 benih acak. |
-| `Penerimaan-002` | Struktur `CharacterProfile` menggunakan skema versi 2 dan menyimpan nilai `BodyGeometry`. |
-| `Penerimaan-003` | Serialisasi format V4 berhasil melakukan perjalanan bolak-balik tanpa kehilangan data pada 100 profil acak. |
-| `Penerimaan-004` | Deserialisasi data format V3 dan V2 berhasil membaca data lama dan menghasilkan geometri yang valid. |
-| `Penerimaan-005` | Nilai `NPC_API_VERSION` adalah 4 dan pemanggilan dengan ukuran struktur versi lama ditolak dengan aman. |
-| `Penerimaan-006` | Sidik digital penyangga piksel identik antara fungsi baru dan fungsi lama untuk kasus tanpa kombinasi cedera-amputasi. |
-| `Penerimaan-007` | Cedera pada bagian tubuh yang diamputasi tidak menghasilkan piksel efek cedera pada kanvas keluaran. |
-| `Penerimaan-008` | Titik efek cedera pada tangan kiri atau kanan digambar di wilayah tangan dan tidak jatuh ke badan. |
-| `Penerimaan-009` | Matriks acuan baru memuat lebih dari 7.800 baris kombinasi dan seluruhnya lulus verifikasi 100 persen. |
-| `Penerimaan-010` | Seluruh 12 ambang diskret terverifikasi perilakunya melalui pengujian transisi. |
-| `Penerimaan-011` | Pengujian kemonotonan memverifikasi 5 pasangan parameter monoton tanpa kegagalan. |
-| `Penerimaan-012` | Seluruh target uji pada CTest lulus tanpa ada kegagalan. |
-| `Penerimaan-013` | Skrip uji Godot berhasil memvalidasi keberadaan kunci `body_geometry` dalam kamus profil karakter. |
-
----
-
-## 13. Pertanyaan terbuka
-
-| No | Pertanyaan | Dampak |
+| Pengenal | Pernyataan kriteria penerimaan | Status verifikasi |
 | --- | --- | --- |
-| 1 | Apakah `BodyGeometry` perlu menyimpan nilai posisi seperti `head_x` dan `torso_y`? | Menyimpan koordinat posisi membuat ukuran struktur lebih besar dan nilai posisi berubah tergantung arah hadap serta animasi. |
-| 2 | Kapan target tes pembanding referensi sementara dihapus dari repositori? | Menentukan apakah berkas pembanding disertakan saat rilis publik atau dihapus sebelum penggabungan cabang master. |
-| 3 | Apakah perbaikan letak cedera tangan dan kaki memengaruhi interpretasi data pada konten dunia lama? | Menentukan perlunya panduan penyesuaian bagi modul simulasi dunia di luar modul pembuat karakter. |
-| 4 | Berapa angka pasti jumlah baris matriks acuan setelah seluruh kombinasi baru ditambahkan? | Menentukan angka pembanding batas minimal pada berkas pengujian hasil acuan. |
-| 5 | Apakah `total_height` dan `torso_h` perlu dimasukkan ke dalam `BodyGeometry`? | Kedua nilai tersebut merupakan dimensi ukuran tubuh yang berpotensi dipakai oleh modul pakaian di masa depan. |
+| `Penerimaan-001` | Sebanyak 7.360 kombinasi hasil acuan dasar lama menghasilkan nilai hash piksel identik 100 persen. | Terverifikasi lulus pada commit `ea0ca77` |
+| `Penerimaan-002` | Sebanyak 524 kombinasi hasil acuan perluasan baru terverifikasi deterministik dan lulus tanpa selisih. | Terverifikasi lulus pada commit `ea0ca77` |
+| `Penerimaan-003` | Fungsi `compute_geometry()` menghasilkan 7 nilai dasar yang identik dengan rumus kanonikal untuk 100 benih acak. | Terverifikasi lulus pada commit `ea0ca77` |
+| `Penerimaan-004` | Seluruh 12 ambang batas diskretisasi dan 5 pasangan kemonotonan parameter lulus pengujian transisi. | Terverifikasi lulus pada commit `ea0ca77` |
+| `Penerimaan-005` | Serialisasi format versi 4 melakukan perjalanan bolak-balik tanpa kehilangan data untuk 100 profil acak. | Terverifikasi lulus pada commit `ea0ca77` |
+| `Penerimaan-006` | Deserializer mampu memigrasikan data format versi 3 dan format versi 2 dengan penghitungan otomatis geometri yang valid. | Terverifikasi lulus pada commit `ea0ca77` |
+| `Penerimaan-007` | Nilai enum dan integer mentah tidak valid ditolak sebelum pemotongan tipe data saat deserialisasi. | Terverifikasi lulus pada commit `ea0ca77` |
+| `Penerimaan-008` | Pemanggilan antarmuka C dengan ukuran biner versi lama ditolak secara aman dengan kode `NPC_ERR_VERSION_MISMATCH`. | Terverifikasi lulus pada commit `ea0ca77` |
+| `Penerimaan-009` | Cedera pada bagian tubuh yang diamputasi tidak menghasilkan piksel visual anomali pada kanvas keluaran. | Terverifikasi lulus pada commit `ea0ca77` |
+| `Penerimaan-010` | Cedera pada pergelangan tangan dan kaki digambar pada posisi fisik anggota badan terkait dan tidak jatuh ke badan. | Terverifikasi lulus pada commit `ea0ca77` |
+| `Penerimaan-011` | Skrip uji asap Godot headless memvalidasi keberadaan dan keabsahan subdomain `body_geometry`. | Terverifikasi lulus pada commit `ea0ca77` |
+| `Penerimaan-012` | Seluruh 7 target uji pada rangkaian CTest lulus 100 persen tanpa kegagalan. | Terverifikasi lulus pada commit `ea0ca77` |
 
 ---
 
-## 14. Glosarium
+## 11. Prosedur reproduksi pengujian
+
+Perintah pengujian mandiri untuk memverifikasi seluruh kriteria penerimaan:
+
+```bash
+# 1. Konfigurasi dan kompilasi target rilis
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+
+# 2. Eksekusi seluruh rangkaian pengujian unit CTest
+ctest --test-dir build --output-on-failure
+
+# 3. Eksekusi pengujian asap engine Godot secara headless
+godot --headless --path godot --script scripts/smoke_test_profile.gd
+```
+
+---
+
+## 12. Glosarium istilah baku
 
 | Istilah | Arti |
 | --- | --- |
-| Karakter | Makhluk di dunia yang digerakkan simulasi, bukan pemain. |
-| Geometri tubuh | Kumpulan 7 nilai dasar bilangan bulat yang menentukan ukuran bagian tubuh karakter dalam satuan piksel. |
-| Penampilan | Nilai bentuk tubuh dan warna yang dihitung dari genom karakter. |
-| Penggambaran | Proses mengubah penampilan, kondisi fisik, dan perintah animasi menjadi susunan piksel warna. |
-| Penyangga piksel | Larik warna berukuran 32 × 48 piksel hasil proses penggambaran. |
-| Jembatan C | Lapisan antarmuka berbahasa C di atas inti logika karakter. |
-| Perluasan Godot | Mekanisme pemuatan modul kode asli C++ ke dalam mesin permainan Godot. |
-| Hasil acuan | Data keluaran tersimpan yang dibandingkan dengan keluaran baru untuk mendeteksi perubahan visual. |
-| Sidik digital | Nilai ringkas hasil algoritma pencacah yang mewakili keutuhan isi data. |
-| Pembanding referensi sementara | Salinan fungsi sebelum refaktor yang digunakan untuk memverifikasi kesetaraan piksel selama masa transisi. |
-| Ambang diskret | Kondisi percabangan logika yang menyebabkan ukuran geometri melompat dan tidak berubah secara kontinu. |
-| Kemonotonan | Karakteristik nilai yang selalu meningkat atau selalu menurun seiring pertambahan parameter masukan. |
-| Perjalanan bolak-balik | Siklus penyimpanan data ke format teks atau biner kemudian dibaca kembali hingga menghasilkan struktur data yang identik. |
-| Genom | Kumpulan data genetik karakter yang dikelola oleh inti simulasi dunia. |
+| Karakter | Makhluk di dunia simulasi yang digerakkan oleh logika sistem, bukan pemain. |
+| Geometri tubuh | Kumpulan 7 nilai dasar bilangan bulat yang menentukan ukuran fisik bagian tubuh karakter dalam satuan piksel. |
+| Penampilan | Nilai bentuk tubuh, wajah, dan warna yang dihitung dari genom karakter. |
+| Penggambaran | Proses mengubah data penampilan, kondisi fisik, dan perintah animasi menjadi susunan piksel warna. |
+| Penyangga piksel | Larik memori warna berukuran 32 × 48 piksel hasil dari proses penggambaran. |
+| Jembatan C | Lapisan antarmuka biner berbahasa C yang membungkus logika inti C++20. |
+| Perluasan Godot | Modul pustaka dinamis berbasis GDExtension yang dimuat oleh mesin permainan Godot. |
+| Hasil acuan | Kumpulan data keluaran hash piksel tersimpan yang digunakan untuk mendeteksi terjadinya regresi visual. |
+| Sidik digital | Nilai hash ringkas 64 bit yang mewakili keutuhan data penyangga piksel secara deterministik. |
+| Ambang batas diskret | Percabangan kondisi logika yang menyebabkan dimensi geometri melompat secara bertingkat. |
+| Kemonotonan | Karakteristik matematis suatu nilai yang tidak pernah menurun atau tidak pernah meningkat terhadap pertambahan masukan. |
+| Perjalanan bolak-balik | Proses pengujian data yang diserialisasi ke teks lalu dibaca kembali hingga menghasilkan struktur data yang identik. |
+| Genom | Struktur data genetik karakter yang dikelola oleh inti simulasi dunia. |
 
 ---
 
-## 15. Riwayat revisi
+## 13. Riwayat revisi
 
 | Tanggal | Versi | Perubahan | Alasan |
 | --- | --- | --- | --- |
-| 2026-10-25 | 1 | Dokumen awal | Mengakomodasi koreksi rencana v0.3.3 untuk memisahkan geometri tubuh, memperbaiki penanganan cedera pada amputasi, memperluas cakupan acuan, dan menata kebijakan versi. |
+| 2026-10-25 | 1 | Dokumen awal rencana v0.3.3 | Mengakomodasi kebutuhan pemisahan geometri tubuh dan penyesuaian nomor versi sistem. |
+| 2026-10-25 | 2 | Revisi menyeluruh rencana v0.3.3 | Menegaskan kontrak kompatibilitas, membedakan regresi dasar dari perluasan acuan, mendokumentasikan invarian sumber kebenaran tunggal, memperinci kebijakan versi dan migrasi, serta menetapkan 12 kriteria penerimaan objektif berbasis audit kode commit `ea0ca77`. |
